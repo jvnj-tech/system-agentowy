@@ -7,6 +7,7 @@ uv run marketagents-report AAPL            wygenerowanie raportu dla spółki
 from __future__ import annotations
 
 import argparse
+import time
 
 from marketagents.config import load_settings
 from marketagents.data.cache import DiskCache
@@ -40,6 +41,18 @@ def main(argv: list[str] | None = None) -> None:
             f"RSI(14) = {indicators['rsi_14']:.1f}, "
             f"{len(fundamentals)} lat danych finansowych, {len(news)} newsów"
         )
+
+
+STEP_NAMES = {
+    "load_data": "pobieranie danych",
+    "technical_analyst": "analiza techniczna",
+    "fundamental_analyst": "analiza fundamentalna",
+    "news_analyst": "analiza newsów",
+    "macro_analyst": "analiza makro",
+    "editor": "redakcja raportu",
+    "verifier": "weryfikacja liczb",
+    "finalize": "składanie raportu",
+}
 
 
 def load_market_data(settings, cache: DiskCache, ticker: str):
@@ -83,8 +96,18 @@ def report(argv: list[str] | None = None) -> None:
     settings = load_settings()
     cache = DiskCache(settings.cache_dir, offline=settings.offline)
 
+    print("Pobieranie danych i generowanie raportu...", flush=True)
     graph = build_graph(get_chat_model(settings), lambda t: load_market_data(settings, cache, t))
-    state = graph.invoke({"ticker": args.ticker.upper()})
+    state: dict = {"ticker": args.ticker.upper()}
+    for update in graph.stream(state, stream_mode="updates"):
+        for node, values in update.items():
+            print(f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True)
+            for key, value in (values or {}).items():
+                if key == "analyses":
+                    state.setdefault("analyses", {}).update(value)
+                else:
+                    state[key] = value
+    print()
 
     status = "zweryfikowany" if state["verified"] else "z niezweryfikowanymi liczbami"
     print(state["report"])

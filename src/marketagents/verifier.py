@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from marketagents.facts import FactSheet
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
+# Model czasem otacza odwołanie znakami ` jak kod; przy podstawianiu są one usuwane.
+PLACEHOLDER_IN_CODE = re.compile(r"`\{\{\s*([A-Za-z0-9_]+)\s*\}\}`")
 # Liczba w zapisie polskim lub angielskim, z opcjonalnym separatorem tysięcy (spacja).
 NUMBER = re.compile(
     r"(?<![\w.,])[-−+]?\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?(?![\w])"
@@ -93,7 +95,7 @@ def render(text: str, facts: FactSheet) -> str:
         fact_id = match.group(1)
         return facts[fact_id].formatted() if fact_id in facts else f"[brak danych: {fact_id}]"
 
-    return PLACEHOLDER.sub(substitute, text)
+    return PLACEHOLDER.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))
 
 
 def mark_unverified(rendered: str, numbers: list[str]) -> str:

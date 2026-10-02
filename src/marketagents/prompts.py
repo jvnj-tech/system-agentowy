@@ -4,6 +4,7 @@ PLACEHOLDER_RULES = """\
 Zasady dotyczące liczb:
 - Nie wpisuj samodzielnie żadnych liczb ani dat. Każdą wartość wstaw jako odwołanie
   do karty faktów, dokładnie w postaci {{identyfikator}}, np. „RSI wynosi {{rsi_14}}”.
+  Nie otaczaj odwołań żadnymi znakami formatowania (np. ` lub **).
 - Wolno pisać tylko nazwy wskaźników z ich okresami, np. „RSI(14)” albo „SMA(200)”.
 - Nie wymyślaj identyfikatorów spoza karty faktów.
 - Nie licz niczego samodzielnie: jeśli potrzebnej wartości nie ma w karcie, opisz zjawisko słowami.

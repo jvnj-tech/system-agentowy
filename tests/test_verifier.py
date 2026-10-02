@@ -53,3 +53,9 @@ def test_list_markers_and_dates_are_ignored():
 def test_mark_unverified():
     rendered = render("RSI 75,3 i 75,30.", FACTS)
     assert mark_unverified(rendered, ["75,3"]) == "RSI 75,3 [niezweryfikowane] i 75,30."
+
+
+def test_placeholders_in_code_ticks_render_as_plain_text():
+    result = verify("Kurs `{{close}}`, RSI `{{ rsi_14 }}`.", FACTS)
+    assert result.ok
+    assert result.rendered == "Kurs 1 234,56 USD, RSI 61,2."
