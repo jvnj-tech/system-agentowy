@@ -64,3 +64,13 @@ def test_placeholders_in_code_ticks_render_as_plain_text():
 def test_unit_repeated_after_placeholder_is_not_duplicated():
     result = verify("Kurs {{close}} USD, zmiana {{change_1m}}%, RSI {{rsi_14}} USD.", FACTS)
     assert result.rendered == "Kurs 1 234,56 USD, zmiana -3,2%, RSI 61,2 USD."
+
+
+def test_number_in_compound_word_is_ignored():
+    assert verify("Rentowność 10-letnich obligacji i 3-miesięczny trend.", FACTS).ok
+    assert not verify("Wzrost o 10-15%.", FACTS).ok
+
+
+def test_mark_unverified_skips_dates():
+    text = "Na dzień 2026-10-01 RSI wynosi 10."
+    assert mark_unverified(text, ["10"]) == "Na dzień 2026-10-01 RSI wynosi 10 [niezweryfikowane]."

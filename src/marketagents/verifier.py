@@ -17,9 +17,10 @@ PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 # Model czasem otacza odwołanie znakami ` jak kod; przy podstawianiu są one usuwane.
 PLACEHOLDER_IN_CODE = re.compile(r"`\{\{\s*([A-Za-z0-9_]+)\s*\}\}`")
 # Liczba w zapisie polskim lub angielskim, z opcjonalnym separatorem tysięcy (spacja).
+# Pomijane są liczby w złożeniach słownych, np. „10-letnie obligacje”.
 NUMBER = re.compile(
     r"(?<![\w.,])[-−+]?\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?(?![\w])"
-    r"|(?<![\w.,])[-−+]?\d+(?:[.,]\d+)?(?![\w])"
+    r"|(?<![\w.,])[-−+]?\d+(?:[.,]\d+)?(?![\w]|-[^\W\d])"
 )
 ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)
@@ -110,7 +111,10 @@ def render(text: str, facts: FactSheet) -> str:
 def mark_unverified(rendered: str, numbers: list[str]) -> str:
     """Oznacza w tekście liczby, których nie udało się zweryfikować."""
     for raw in sorted(set(numbers), key=len, reverse=True):
+        # Bez dopasowań wewnątrz dat w rodzaju 2026-10-02.
         rendered = re.sub(
-            rf"(?<![\w.,]){re.escape(raw)}(?![\w])", f"{raw} [niezweryfikowane]", rendered
+            rf"(?<![\w.,])(?<!\d-){re.escape(raw)}(?![\w]|-\d)",
+            f"{raw} [niezweryfikowane]",
+            rendered,
         )
     return rendered
