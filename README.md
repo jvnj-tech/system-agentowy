@@ -10,7 +10,7 @@ generuje raport analityczny z interaktywnymi wykresami i pozwala zadawać pytani
 - [x] Warstwa danych z pamięcią podręczną (ceny, fundamenty, newsy, makro)
 - [x] Wskaźniki techniczne z testami
 - [x] Graf agentów (LangGraph): czterech analityków, redaktor i weryfikator liczb
-- [ ] Interfejs (Streamlit + Plotly)
+- [x] Interfejs (Streamlit + Plotly) z asystentem pytań o raport
 - [ ] Ewaluacja: backtesting i jakość raportów
 
 ## Źródła danych
@@ -33,6 +33,18 @@ uv run marketagents-fetch AAPL MSFT NVDA
 uv run marketagents-report AAPL --out raport_AAPL.md
 ```
 
+Interfejs w przeglądarce:
+
+```bash
+uv run streamlit run src/marketagents/app.py
+```
+
+W panelu bocznym wybiera się spółkę z listy NASDAQ-100 lub wpisuje symbol. Aplikacja ma trzy
+zakładki: raport (ze statusem weryfikacji liczb i kartą faktów), interaktywne wykresy
+(świece z SMA(20/50/200) i wstęgami Bollingera, RSI(14), MACD, przychody i zysk netto)
+oraz pytania, w których asystent odpowiada na pytania o wygenerowany raport. Wygenerowany
+raport jest przechowywany w sesji, więc nie powstaje ponownie przy każdej interakcji.
+
 Raport wymaga klucza `GOOGLE_API_KEY` (darmowy, z Google AI Studio). Model ustawia się
 zmienną `GEMINI_MODEL`. Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa
 pracy: pomijana jest tylko odpowiednia część analizy.
@@ -50,6 +62,8 @@ dane -> karta faktów -+--> analityk fundamentalny --+-> redaktor -> weryfikator
 ```
 
 Analitycy działają równolegle i każdy dostaje tylko fakty ze swojej dziedziny.
+Szósty agent, asystent pytań, odpowiada na pytania o gotowy raport na podstawie raportu
+i karty faktów, z tymi samymi zasadami odwołań i weryfikacją liczb.
 
 Liczby liczy kod, a model językowy tylko je interpretuje. Agenci nie wpisują wartości
 do tekstu, lecz odwołania do karty faktów w postaci `{{rsi_14}}`, które są podstawiane
@@ -79,6 +93,9 @@ src/marketagents/
   graph.py               graf agentów (LangGraph)
   prompts.py             instrukcje dla agentów
   llm.py                 połączenie z modelem (Gemini)
+  qa.py                  asystent pytań o raport
+  charts.py              wykresy Plotly
+  app.py                 interfejs Streamlit
   data/
     cache.py             pamięć podręczna na dysku
     prices.py            notowania (yfinance)
