@@ -52,14 +52,15 @@ def chart_data(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | 
 
 
 def describe_error(exc: Exception) -> str:
-    if "RESOURCE_EXHAUSTED" in str(exc):
+    text = str(exc)
+    if any(m in text for m in ("RESOURCE_EXHAUSTED", "rate_limit", "429")):
         return (
-            "wyczerpano limit zapytań do Gemini w darmowym planie. Spróbuj później "
-            "albo ustaw inny model w zmiennej GEMINI_MODEL (limity są osobne dla modeli)."
+            "wyczerpano limit zapytań do modelu w darmowym planie. Spróbuj później albo zmień "
+            "model lub dostawcę (zmienne LLM_PROVIDER, GEMINI_MODEL, GROQ_MODEL w pliku .env)."
         )
-    if "UNAVAILABLE" in str(exc):
-        return "model Gemini jest chwilowo przeciążony. Spróbuj ponownie za kilka minut."
-    return str(exc)
+    if "UNAVAILABLE" in text or "503" in text:
+        return "model jest chwilowo przeciążony. Spróbuj ponownie za kilka minut."
+    return text
 
 
 def generate_report(ticker: str) -> dict:
@@ -100,7 +101,9 @@ def sidebar() -> tuple[str | None, bool]:
         cached = ticker in st.session_state.reports
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
         clicked = st.button(label, type="primary", width="stretch")
-        st.caption("Raport tworzą agenci na modelu Gemini; generowanie trwa zwykle kilka minut.")
+        settings = resources()[0]
+        model = settings.groq_model if settings.llm_provider == "groq" else settings.gemini_model
+        st.caption(f"Raport tworzą agenci na modelu {model}; generowanie trwa zwykle kilka minut.")
     return ticker, clicked
 
 

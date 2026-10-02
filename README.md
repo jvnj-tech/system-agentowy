@@ -45,10 +45,12 @@ zakładki: raport (ze statusem weryfikacji liczb i kartą faktów), interaktywne
 oraz pytania, w których asystent odpowiada na pytania o wygenerowany raport. Wygenerowany
 raport jest przechowywany w sesji, więc nie powstaje ponownie przy każdej interakcji.
 
-Raport wymaga klucza `GOOGLE_API_KEY` (darmowy, z Google AI Studio). Model ustawia się
-zmienną `GEMINI_MODEL`. Darmowy plan ma dzienny limit zapytań liczony osobno
-dla każdego modelu; jeden raport to zwykle 6–8 zapytań, a każde pytanie do asystenta 1–2. Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa
-pracy: pomijana jest tylko odpowiednia część analizy.
+Raport wymaga modelu językowego. Dostawcę wybiera się zmienną `LLM_PROVIDER`:
+`gemini` (klucz `GOOGLE_API_KEY` z Google AI Studio, model w `GEMINI_MODEL`) albo `groq`
+(klucz `GROQ_API_KEY` z konsoli Groq, model w `GROQ_MODEL`). Oba mają darmowe plany
+z limitami zapytań; jeden raport to zwykle 6–8 zapytań, a każde pytanie do asystenta 1–2.
+Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa pracy: pomijana jest tylko
+odpowiednia część analizy.
 
 Pobrane dane trafiają do katalogu `.cache/`. Po ustawieniu `MARKETAGENTS_OFFLINE=1`
 system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać testy na tym samym zbiorze.
@@ -93,7 +95,7 @@ src/marketagents/
   verifier.py            weryfikacja liczb w raporcie
   graph.py               graf agentów (LangGraph)
   prompts.py             instrukcje dla agentów
-  llm.py                 połączenie z modelem (Gemini)
+  llm.py                 połączenie z modelem (Gemini lub Groq)
   qa.py                  asystent pytań o raport
   charts.py              wykresy Plotly
   app.py                 interfejs Streamlit
