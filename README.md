@@ -41,9 +41,19 @@ uv run streamlit run src/marketagents/app.py
 
 W panelu bocznym wybiera się spółkę z listy NASDAQ-100 lub wpisuje symbol. Aplikacja ma trzy
 zakładki: raport (ze statusem weryfikacji liczb i kartą faktów), interaktywne wykresy
-(świece z SMA(20/50/200) i wstęgami Bollingera, RSI(14), MACD, przychody i zysk netto)
 oraz pytania, w których asystent odpowiada na pytania o wygenerowany raport. Wygenerowany
 raport jest przechowywany w sesji, więc nie powstaje ponownie przy każdej interakcji.
+
+Wykresy powstają z danych bez udziału modelu językowego:
+
+- świece z SMA(20/50/200) i wstęgami Bollingera, wolumen, RSI(14) z poziomami 30/70, MACD,
+- kurs spółki na tle NASDAQ-100 (ETF QQQ), oba znormalizowane do 100 na początku okresu,
+- obsunięcie od szczytu i zmienność krocząca z 30 sesji w skali roku,
+- mapa miesięcznych stóp zwrotu (rok × miesiąc),
+- przychody, zysk netto oraz marże brutto, operacyjna i netto ze sprawozdań 10-K,
+- stopa Fed, rentowność 10-letnich obligacji i inflacja CPI r/r.
+
+Wykres, dla którego brakuje danych (np. bez klucza FRED), jest pomijany.
 
 Raport wymaga modelu językowego. Dostawcę wybiera się zmienną `LLM_PROVIDER`:
 `gemini` (klucz `GOOGLE_API_KEY` z Google AI Studio, model w `GEMINI_MODEL`) albo `groq`
@@ -97,6 +107,7 @@ src/marketagents/
   prompts.py             instrukcje dla agentów
   llm.py                 połączenie z modelem (Gemini lub Groq)
   qa.py                  asystent pytań o raport
+  analytics.py           miary do wykresów (obsunięcie, zmienność, zwroty miesięczne, marże)
   charts.py              wykresy Plotly
   app.py                 interfejs Streamlit
   data/

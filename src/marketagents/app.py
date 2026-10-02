@@ -11,11 +11,22 @@ import time
 import pandas as pd
 import streamlit as st
 
-from marketagents.charts import fundamentals_chart, technical_chart
+from marketagents import analytics
+from marketagents.charts import (
+    drawdown_chart,
+    fundamentals_chart,
+    macro_chart,
+    margins_chart,
+    monthly_heatmap,
+    relative_chart,
+    technical_chart,
+    volatility_chart,
+)
 from marketagents.cli import STEP_NAMES, load_market_data
 from marketagents.config import load_settings
 from marketagents.data.cache import DiskCache
 from marketagents.data.fundamentals import get_fundamentals
+from marketagents.data.macro import get_macro
 from marketagents.data.prices import get_prices
 from marketagents.data.universe import nasdaq100
 from marketagents.facts import FactSheet
@@ -25,6 +36,9 @@ from marketagents.llm import get_chat_model
 from marketagents.qa import answer_question
 
 TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+# ETF odwzorowujący NASDAQ-100, notowany na tych samych sesjach co spółki.
+BENCHMARK, BENCHMARK_NAME = "QQQ", "NASDAQ-100 (QQQ)"
+VOLATILITY_WINDOW = 30
 PERIODS = {"3 mies.": 63, "6 mies.": 126, "1 rok": 252, "2 lata": 504, "5 lat": 1260}
 
 
@@ -49,6 +63,23 @@ def chart_data(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | 
     except Exception:  # noqa: BLE001
         annual = None
     return prices, compute_all(prices), annual
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def benchmark_close() -> pd.Series | None:
+    try:
+        return get_prices(resources()[1], BENCHMARK)["close"]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def macro_data() -> pd.DataFrame | None:
+    settings, cache = resources()
+    try:
+        return analytics.macro_history(get_macro(cache, settings.fred_api_key))
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def describe_error(exc: Exception) -> str:
@@ -144,13 +175,56 @@ def show_charts(ticker: str) -> None:
         return
     period = st.segmented_control("Okres", list(PERIODS), default="1 rok") or "1 rok"
     sessions = PERIODS[period]
+    close = prices["close"].iloc[-sessions:]
     st.plotly_chart(
         technical_chart(prices.iloc[-sessions:], indicators.iloc[-sessions:]),
         width="stretch",
     )
+
+    st.subheader(f"{ticker} na tle {BENCHMARK_NAME}")
+    benchmark = benchmark_close()
+    if benchmark is None or ticker == BENCHMARK:
+        st.caption("Brak notowań indeksu do porównania.")
+    else:
+        relative = analytics.relative_performance(close, benchmark)
+        st.plotly_chart(relative_chart(relative, ticker, BENCHMARK_NAME), width="stretch")
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Obsunięcie od szczytu")
+        st.plotly_chart(drawdown_chart(analytics.drawdown(close)), width="stretch")
+    with right:
+        st.subheader(f"Zmienność ({VOLATILITY_WINDOW} sesji, w skali roku)")
+        volatility = analytics.rolling_volatility(prices["close"], VOLATILITY_WINDOW)
+        st.plotly_chart(
+            volatility_chart(volatility.iloc[-sessions:], VOLATILITY_WINDOW), width="stretch"
+        )
+
+    st.subheader("Miesięczne stopy zwrotu (%)")
+    st.plotly_chart(monthly_heatmap(analytics.monthly_returns(prices["close"])), width="stretch")
+    st.caption("Cała dostępna historia notowań, niezależnie od wybranego okresu.")
+
     if annual is not None and not annual.empty:
-        st.subheader("Przychody i zysk netto (sprawozdania 10-K)")
-        st.plotly_chart(fundamentals_chart(annual.iloc[-10:]), width="stretch")
+        left, right = st.columns(2)
+        with left:
+            st.subheader("Przychody i zysk netto (10-K)")
+            st.plotly_chart(fundamentals_chart(annual.iloc[-10:]), width="stretch")
+        margins = analytics.margins(annual.iloc[-10:])
+        with right:
+            st.subheader("Marże (10-K)")
+            if margins.empty:
+                st.caption("Brak danych o przychodach.")
+            else:
+                st.plotly_chart(margins_chart(margins), width="stretch")
+    else:
+        st.caption("Brak danych ze sprawozdań finansowych (sprawdź SEC_USER_AGENT).")
+
+    st.subheader("Otoczenie makroekonomiczne w USA")
+    macro = macro_data()
+    if macro is None or macro.empty:
+        st.caption("Brak danych makro (sprawdź klucz FRED_API_KEY).")
+    else:
+        st.plotly_chart(macro_chart(macro), width="stretch")
 
 
 def show_chat(ticker: str, result: dict | None) -> None:
