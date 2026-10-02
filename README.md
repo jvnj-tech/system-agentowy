@@ -9,8 +9,7 @@ generuje raport analityczny z interaktywnymi wykresami i pozwala zadawać pytani
 - [x] Szkielet projektu, testy i lint
 - [x] Warstwa danych z pamięcią podręczną (ceny, fundamenty, newsy, makro)
 - [x] Wskaźniki techniczne z testami
-- [x] Pierwszy graf agentów (LangGraph): analityk techniczny, redaktor i weryfikator liczb
-- [ ] Analitycy fundamentów, newsów i makro
+- [x] Graf agentów (LangGraph): czterech analityków, redaktor i weryfikator liczb
 - [ ] Interfejs (Streamlit + Plotly)
 - [ ] Ewaluacja: backtesting i jakość raportów
 
@@ -35,7 +34,8 @@ uv run marketagents-report AAPL --out raport_AAPL.md
 ```
 
 Raport wymaga klucza `GOOGLE_API_KEY` (darmowy, z Google AI Studio). Model ustawia się
-zmienną `GEMINI_MODEL`.
+zmienną `GEMINI_MODEL`. Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa
+pracy: pomijana jest tylko odpowiednia część analizy.
 
 Pobrane dane trafiają do katalogu `.cache/`. Po ustawieniu `MARKETAGENTS_OFFLINE=1`
 system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać testy na tym samym zbiorze.
@@ -43,10 +43,13 @@ system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać testy na 
 ## Jak powstaje raport
 
 ```
-dane -> karta faktów -> analityk techniczny -> redaktor -> weryfikator -> raport
-                                                  ^             |
-                                                  +-- poprawki -+
+                       /-> analityk techniczny     -\
+dane -> karta faktów -+--> analityk fundamentalny --+-> redaktor -> weryfikator -> raport
+                       +-> analityk newsów         -+      ^             |
+                       \-> analityk makro          -/      +-- poprawki -+
 ```
+
+Analitycy działają równolegle i każdy dostaje tylko fakty ze swojej dziedziny.
 
 Liczby liczy kod, a model językowy tylko je interpretuje. Agenci nie wpisują wartości
 do tekstu, lecz odwołania do karty faktów w postaci `{{rsi_14}}`, które są podstawiane

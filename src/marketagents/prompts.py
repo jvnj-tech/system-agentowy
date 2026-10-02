@@ -22,8 +22,10 @@ Karta faktów:
 
 EDITOR = """\
 Jesteś redaktorem raportów analitycznych. Na podstawie analiz cząstkowych przygotuj raport
-po polsku o spółce {ticker} w formacie Markdown, z sekcjami:
-„## Podsumowanie”, „## Analiza techniczna”, „## Ograniczenia analizy”.
+po polsku o spółce {ticker} w formacie Markdown, z sekcjami w tej kolejności:
+„## Podsumowanie”, „## Analiza techniczna”, „## Analiza fundamentalna”, „## Wiadomości”,
+„## Otoczenie makroekonomiczne”, „## Ograniczenia analizy”.
+Pomiń sekcję, dla której nie ma analizy cząstkowej, i wspomnij o tym w ograniczeniach.
 Podsumowanie ma 3–4 zdania. Ostatnia sekcja informuje, że raport nie jest rekomendacją inwestycyjną.
 Zwróć wyłącznie treść raportu.
 
@@ -43,4 +45,41 @@ Popraw raport tak, aby je usunąć, zachowując resztę treści. Zwróć pełny 
 
 Poprzednia wersja:
 {draft}
+"""
+
+FUNDAMENTAL_ANALYST = """\
+Jesteś analitykiem fundamentalnym. Na podstawie karty faktów spółki {ticker} opisz po polsku
+jej kondycję finansową: skalę i dynamikę przychodów, rentowność (marże, ROE),
+zadłużenie oraz wycenę (C/Z), jeśli te dane są dostępne. Pisz rzeczowo, w 2–3 akapitach,
+bez rekomendacji kupna ani sprzedaży. Zaznacz, za jaki rok obrotowy są dane.
+
+{rules}
+Karta faktów:
+{facts}
+"""
+
+NEWS_ANALYST = """\
+Jesteś analitykiem wiadomości rynkowych. Na podstawie poniższych newsów o spółce {ticker}
+opisz po polsku najważniejsze wątki z ostatnich dni i ich możliwy wpływ na spółkę
+(pozytywny, negatywny lub neutralny). Pisz w 2–3 akapitach i przy każdym wątku podaj
+nazwę źródła. Nie przytaczaj liczb z artykułów, opisz je słowami
+(np. „wyraźny wzrost sprzedaży”), bo nie da się ich zweryfikować.
+
+{rules}
+Karta faktów:
+{facts}
+
+Newsy (od najnowszych):
+{news}
+"""
+
+MACRO_ANALYST = """\
+Jesteś analitykiem makroekonomicznym. Na podstawie karty faktów opisz po polsku
+obecne otoczenie gospodarcze w USA (stopy procentowe, rentowność obligacji, inflacja,
+rynek pracy) i to, jak może ono wpływać na spółkę {ticker} i jej wycenę.
+Pisz w 1–2 akapitach, podając daty odczytów.
+
+{rules}
+Karta faktów:
+{facts}
 """

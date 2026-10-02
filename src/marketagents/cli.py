@@ -14,7 +14,7 @@ from marketagents.data.fundamentals import get_fundamentals
 from marketagents.data.macro import get_macro
 from marketagents.data.news import get_news
 from marketagents.data.prices import get_prices
-from marketagents.facts import Fact, technical_facts
+from marketagents.facts import fundamental_facts, macro_facts, technical_facts
 from marketagents.indicators import compute_all
 
 
@@ -42,6 +42,35 @@ def main(argv: list[str] | None = None) -> None:
         )
 
 
+def load_market_data(settings, cache: DiskCache, ticker: str):
+    """Dane dla raportu. Brak klucza do źródła pomija tylko odpowiednią część analizy."""
+    from marketagents.graph import MarketData
+
+    prices = get_prices(cache, ticker)
+    close = float(prices["close"].iloc[-1])
+    facts = technical_facts(ticker, prices, compute_all(prices))
+    data = MarketData(facts=facts)
+
+    sources = {
+        "fundamenty": lambda: fundamental_facts(
+            get_fundamentals(cache, ticker, settings.sec_user_agent), close
+        ),
+        "makro": lambda: macro_facts(get_macro(cache, settings.fred_api_key)),
+    }
+    for name, load in sources.items():
+        try:
+            data.facts += load()
+        except Exception as exc:  # noqa: BLE001
+            print(f"Pomijam {name}: {exc}")
+    try:
+        news = get_news(cache, ticker, settings.finnhub_api_key)
+        news["published"] = news["published"].dt.strftime("%Y-%m-%d %H:%M")
+        data.news = news.to_dict("records")
+    except Exception as exc:  # noqa: BLE001
+        print(f"Pomijam newsy: {exc}")
+    return data
+
+
 def report(argv: list[str] | None = None) -> None:
     from marketagents.graph import build_graph
     from marketagents.llm import get_chat_model
@@ -54,11 +83,7 @@ def report(argv: list[str] | None = None) -> None:
     settings = load_settings()
     cache = DiskCache(settings.cache_dir, offline=settings.offline)
 
-    def load_facts(ticker: str) -> list[Fact]:
-        prices = get_prices(cache, ticker)
-        return technical_facts(ticker, prices, compute_all(prices))
-
-    graph = build_graph(get_chat_model(settings), load_facts)
+    graph = build_graph(get_chat_model(settings), lambda t: load_market_data(settings, cache, t))
     state = graph.invoke({"ticker": args.ticker.upper()})
 
     status = "zweryfikowany" if state["verified"] else "z niezweryfikowanymi liczbami"
