@@ -46,7 +46,8 @@ oraz pytania, w których asystent odpowiada na pytania o wygenerowany raport. Wy
 raport jest przechowywany w sesji, więc nie powstaje ponownie przy każdej interakcji.
 
 Raport wymaga klucza `GOOGLE_API_KEY` (darmowy, z Google AI Studio). Model ustawia się
-zmienną `GEMINI_MODEL`. Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa
+zmienną `GEMINI_MODEL`. Darmowy plan ma dzienny limit zapytań liczony osobno
+dla każdego modelu; jeden raport to zwykle 6–8 zapytań, a każde pytanie do asystenta 1–2. Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa
 pracy: pomijana jest tylko odpowiednia część analizy.
 
 Pobrane dane trafiają do katalogu `.cache/`. Po ustawieniu `MARKETAGENTS_OFFLINE=1`

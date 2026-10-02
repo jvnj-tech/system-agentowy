@@ -206,7 +206,10 @@ def main() -> None:
             st.error(f"Nie udało się wygenerować raportu: {describe_error(exc)}")
     result = st.session_state.reports.get(ticker)
 
-    report_tab, charts_tab, chat_tab = st.tabs(["Raport", "Wykresy", "Pytania"])
+    # Klucz zachowuje wybraną zakładkę po odświeżeniu strony, np. po odpowiedzi asystenta.
+    report_tab, charts_tab, chat_tab = st.tabs(
+        ["Raport", "Wykresy", "Pytania"], key="tab", on_change="rerun"
+    )
     with report_tab:
         if result:
             show_report(ticker, result)
