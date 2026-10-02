@@ -16,6 +16,7 @@ class Settings:
     finnhub_api_key: str | None
     fred_api_key: str | None
     sec_user_agent: str | None
+    gemini_model: str
 
 
 def load_settings() -> Settings:
@@ -26,4 +27,5 @@ def load_settings() -> Settings:
         finnhub_api_key=os.getenv("FINNHUB_API_KEY") or None,
         fred_api_key=os.getenv("FRED_API_KEY") or None,
         sec_user_agent=os.getenv("SEC_USER_AGENT") or None,
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
     )

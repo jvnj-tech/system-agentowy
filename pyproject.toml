@@ -11,6 +11,9 @@ dependencies = [
     "requests>=2.31",
     "yfinance>=0.2.50",
     "python-dotenv>=1.0",
+    "langgraph>=0.6",
+    "langchain-core>=0.3",
+    "langchain-google-genai>=2.1",
 ]
 
 [dependency-groups]
@@ -22,6 +25,7 @@ dev = [
 
 [project.scripts]
 marketagents-fetch = "marketagents.cli:main"
+marketagents-report = "marketagents.cli:report"
 
 [build-system]
 requires = ["uv_build>=0.8.17,<0.9.0"]

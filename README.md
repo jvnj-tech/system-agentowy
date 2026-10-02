@@ -9,7 +9,8 @@ generuje raport analityczny z interaktywnymi wykresami i pozwala zadawać pytani
 - [x] Szkielet projektu, testy i lint
 - [x] Warstwa danych z pamięcią podręczną (ceny, fundamenty, newsy, makro)
 - [x] Wskaźniki techniczne z testami
-- [ ] Graf agentów (LangGraph) z weryfikacją liczb w raporcie
+- [x] Pierwszy graf agentów (LangGraph): analityk techniczny, redaktor i weryfikator liczb
+- [ ] Analitycy fundamentów, newsów i makro
 - [ ] Interfejs (Streamlit + Plotly)
 - [ ] Ewaluacja: backtesting i jakość raportów
 
@@ -30,10 +31,28 @@ Wymagany jest [uv](https://docs.astral.sh/uv/).
 uv sync
 cp .env.example .env   # uzupełnij klucze
 uv run marketagents-fetch AAPL MSFT NVDA
+uv run marketagents-report AAPL --out raport_AAPL.md
 ```
+
+Raport wymaga klucza `GOOGLE_API_KEY` (darmowy, z Google AI Studio). Model ustawia się
+zmienną `GEMINI_MODEL`.
 
 Pobrane dane trafiają do katalogu `.cache/`. Po ustawieniu `MARKETAGENTS_OFFLINE=1`
 system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać testy na tym samym zbiorze.
+
+## Jak powstaje raport
+
+```
+dane -> karta faktów -> analityk techniczny -> redaktor -> weryfikator -> raport
+                                                  ^             |
+                                                  +-- poprawki -+
+```
+
+Liczby liczy kod, a model językowy tylko je interpretuje. Agenci nie wpisują wartości
+do tekstu, lecz odwołania do karty faktów w postaci `{{rsi_14}}`, które są podstawiane
+przy składaniu raportu. Weryfikator sprawdza, czy każde odwołanie istnieje i czy w tekście
+nie pojawiła się liczba spoza karty. Jeśli tak, raport wraca do redaktora z listą błędów
+(najwyżej dwa razy), a liczby, których nie udało się poprawić, są oznaczane w raporcie.
 
 ## Testy
 
@@ -42,6 +61,7 @@ uv run pytest
 uv run ruff check .
 ```
 
+Testy grafu korzystają z modelu zastępczego, więc nie wymagają klucza API.
 Wskaźniki techniczne są sprawdzane na wartościach liczonych ręcznie, na niezależnej
 implementacji krok po kroku oraz na wynikach biblioteki `ta`.
 
@@ -50,7 +70,12 @@ implementacji krok po kroku oraz na wynikach biblioteki `ta`.
 ```
 src/marketagents/
   config.py              konfiguracja ze zmiennych środowiskowych
-  cli.py                 pobieranie danych z linii poleceń
+  cli.py                 polecenia: pobieranie danych i generowanie raportu
+  facts.py               karta faktów
+  verifier.py            weryfikacja liczb w raporcie
+  graph.py               graf agentów (LangGraph)
+  prompts.py             instrukcje dla agentów
+  llm.py                 połączenie z modelem (Gemini)
   data/
     cache.py             pamięć podręczna na dysku
     prices.py            notowania (yfinance)
