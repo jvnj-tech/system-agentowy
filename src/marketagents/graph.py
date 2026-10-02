@@ -25,6 +25,8 @@ from marketagents.verifier import mark_unverified, verify
 
 MAX_FIXES = 2
 MAX_NEWS = 15
+# Ostatnia sekcja raportu; jej brak oznacza, że model urwał odpowiedź.
+LAST_SECTION = "## Ograniczenia analizy"
 
 
 @dataclass
@@ -98,12 +100,15 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
     def verifier(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
         result = verify(state["draft"], facts)
+        issues = result.issues()
+        if LAST_SECTION not in state["draft"]:
+            issues.append(f"Raport jest niekompletny: brak sekcji „{LAST_SECTION}”")
         return {
-            "issues": result.issues(),
+            "issues": issues,
             "unverified": result.unverified_numbers,
             "attempts": state.get("attempts", 0) + 1,
             "report": result.rendered,
-            "verified": result.ok,
+            "verified": not issues,
         }
 
     def finalize(state: ReportState) -> ReportState:
