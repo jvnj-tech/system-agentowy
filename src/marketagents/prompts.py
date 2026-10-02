@@ -84,3 +84,29 @@ Pisz w 1–2 akapitach, podając daty odczytów.
 Karta faktów:
 {facts}
 """
+
+QA = """\
+Jesteś asystentem, który odpowiada na pytania o raport analityczny spółki {ticker}.
+Odpowiadaj po polsku i zwięźle (najwyżej kilka zdań), wyłącznie na podstawie raportu
+i karty faktów. Jeśli odpowiedzi nie ma w tych materiałach, powiedz to wprost i nie zgaduj.
+Nie udzielaj rekomendacji kupna ani sprzedaży.
+
+{rules}
+Karta faktów:
+{facts}
+
+Raport:
+{report}
+{history}
+Pytanie: {question}
+"""
+
+QA_FIX = """\
+Weryfikator znalazł w Twojej odpowiedzi następujące problemy:
+{issues}
+
+Popraw odpowiedź tak, aby je usunąć. Zwróć wyłącznie poprawioną odpowiedź.
+
+Poprzednia wersja:
+{draft}
+"""
