@@ -90,12 +90,21 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
     )
 
 
+# Jednostka dopisana przez model zaraz po odwołaniu, które już ją zawiera („{{close}} USD”).
+TRAILING_UNIT = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}(\s*(?:USD|%|mld USD))?(?![\w])")
+
+
 def render(text: str, facts: FactSheet) -> str:
     def substitute(match: re.Match) -> str:
-        fact_id = match.group(1)
-        return facts[fact_id].formatted() if fact_id in facts else f"[brak danych: {fact_id}]"
+        fact_id, trailing = match.group(1), match.group(2) or ""
+        if fact_id not in facts:
+            return f"[brak danych: {fact_id}]{trailing}"
+        fact = facts[fact_id]
+        if trailing and trailing.strip() == fact.unit:
+            trailing = ""
+        return fact.formatted() + trailing
 
-    return PLACEHOLDER.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))
+    return TRAILING_UNIT.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))
 
 
 def mark_unverified(rendered: str, numbers: list[str]) -> str:

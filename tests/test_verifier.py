@@ -59,3 +59,8 @@ def test_placeholders_in_code_ticks_render_as_plain_text():
     result = verify("Kurs `{{close}}`, RSI `{{ rsi_14 }}`.", FACTS)
     assert result.ok
     assert result.rendered == "Kurs 1 234,56 USD, RSI 61,2."
+
+
+def test_unit_repeated_after_placeholder_is_not_duplicated():
+    result = verify("Kurs {{close}} USD, zmiana {{change_1m}}%, RSI {{rsi_14}} USD.", FACTS)
+    assert result.rendered == "Kurs 1 234,56 USD, zmiana -3,2%, RSI 61,2 USD."
