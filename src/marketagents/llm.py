@@ -33,3 +33,13 @@ def get_chat_model(settings: Settings, temperature: float = 0.2) -> BaseChatMode
         timeout=120,
         max_retries=3,
     )
+
+
+def message_text(message) -> str:
+    """Tekst odpowiedzi modelu; Gemini zwraca go czasem jako listę części."""
+    content = message.content
+    if isinstance(content, list):
+        return "".join(
+            part.get("text", "") if isinstance(part, dict) else str(part) for part in content
+        )
+    return str(content)

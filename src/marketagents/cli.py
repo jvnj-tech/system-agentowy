@@ -85,7 +85,7 @@ def load_market_data(settings, cache: DiskCache, ticker: str):
 
 
 def report(argv: list[str] | None = None) -> None:
-    from marketagents.graph import build_graph
+    from marketagents.graph import build_graph, run_report
     from marketagents.llm import get_chat_model
 
     parser = argparse.ArgumentParser(description="Wygenerowanie raportu dla spółki.")
@@ -98,15 +98,13 @@ def report(argv: list[str] | None = None) -> None:
 
     print("Pobieranie danych i generowanie raportu...", flush=True)
     graph = build_graph(get_chat_model(settings), lambda t: load_market_data(settings, cache, t))
-    state: dict = {"ticker": args.ticker.upper()}
-    for update in graph.stream(state, stream_mode="updates"):
-        for node, values in update.items():
-            print(f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True)
-            for key, value in (values or {}).items():
-                if key == "analyses":
-                    state.setdefault("analyses", {}).update(value)
-                else:
-                    state[key] = value
+    state = run_report(
+        graph,
+        args.ticker.upper(),
+        lambda node: print(
+            f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True
+        ),
+    )
     print()
 
     status = "zweryfikowany" if state["verified"] else "z niezweryfikowanymi liczbami"

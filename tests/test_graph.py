@@ -1,7 +1,7 @@
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact
-from marketagents.graph import MAX_FIXES, MarketData, build_graph
+from marketagents.graph import MAX_FIXES, MarketData, build_graph, run_report
 
 TECH = [Fact("close", "kurs", 100.0, "USD"), Fact("rsi_14", "RSI", 55.56, "", 1, TECHNICAL)]
 FUND = [Fact("fy_net_margin", "marża netto", 24.31, "%", 1, FUNDAMENTAL)]
@@ -73,3 +73,15 @@ def test_unfixable_report_is_marked_after_max_attempts():
     assert not state["verified"]
     assert state["attempts"] == MAX_FIXES + 1
     assert "70,1 [niezweryfikowane]" in state["report"]
+
+
+def test_run_report_merges_updates_like_invoke():
+    data = MarketData(facts=TECH + FUND, news=NEWS)
+    responses = ["Analiza A."] * 3 + ["Raport {{close}}."]
+    steps: list[str] = []
+    llm = RecordingLLM(responses=responses, prompts=[])
+    state = run_report(build_graph(llm, lambda ticker: data), "TEST", steps.append)
+    assert set(state["analyses"]) == {"techniczna", "fundamentalna", "wiadomości"}
+    assert state["report"] == "Raport 100,00 USD."
+    assert steps[0] == "load_data" and steps[-1] == "finalize"
+    assert {"editor", "verifier", "macro_analyst"} <= set(steps)

@@ -20,6 +20,7 @@ from langgraph.graph import END, START, StateGraph
 
 from marketagents import prompts
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet
+from marketagents.llm import message_text
 from marketagents.verifier import mark_unverified, verify
 
 MAX_FIXES = 2
@@ -43,15 +44,6 @@ class ReportState(TypedDict, total=False):
     attempts: int
     report: str
     verified: bool
-
-
-def _text(message) -> str:
-    content = message.content
-    if isinstance(content, list):
-        return "".join(
-            part.get("text", "") if isinstance(part, dict) else str(part) for part in content
-        )
-    return str(content)
 
 
 def _format_news(news: list[dict]) -> str:
@@ -84,7 +76,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
                 facts=facts.as_prompt_table(),
                 news=_format_news(state.get("news", [])),
             )
-            return {"analyses": {name: _text(llm.invoke(prompt))}}
+            return {"analyses": {name: message_text(llm.invoke(prompt))}}
 
         return node
 
@@ -101,7 +93,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             prompt += "\n\n" + prompts.EDITOR_FIX.format(
                 issues="\n".join(f"- {i}" for i in state["issues"]), draft=state["draft"]
             )
-        return {"draft": _text(llm.invoke(prompt))}
+        return {"draft": message_text(llm.invoke(prompt))}
 
     def verifier(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
@@ -145,3 +137,18 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
     graph.add_conditional_edges("verifier", after_verification, ["editor", "finalize"])
     graph.add_edge("finalize", END)
     return graph.compile()
+
+
+def run_report(graph, ticker: str, on_step: Callable[[str], None] | None = None) -> ReportState:
+    """Uruchamia graf etap po etapie; on_step dostaje nazwę każdego zakończonego węzła."""
+    state: ReportState = {"ticker": ticker}
+    for update in graph.stream(state, stream_mode="updates"):
+        for node, values in update.items():
+            for key, value in (values or {}).items():
+                if key == "analyses":
+                    state.setdefault("analyses", {}).update(value)
+                else:
+                    state[key] = value
+            if on_step:
+                on_step(node)
+    return state
