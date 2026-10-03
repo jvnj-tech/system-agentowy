@@ -97,3 +97,11 @@ def test_truncated_report_goes_back_to_editor():
     assert state["verified"]
     assert state["attempts"] == 2
     assert "brak sekcji „## Ograniczenia analizy”" in llm.prompts[-1]
+
+
+def test_technical_analyst_prompt_describes_moving_averages():
+    _, llm = run(["Analiza.", "Raport {{close}}." + END], MarketData(facts=TECH))
+    technical = llm.prompts[0]
+    assert "wzajemny układ średnich" in technical
+    assert "z opóźnieniem" in technical
+    assert "bez rekomendacji" in technical

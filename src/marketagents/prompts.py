@@ -12,9 +12,18 @@ Zasady dotyczące liczb:
 
 TECHNICAL_ANALYST = """\
 Jesteś analitykiem technicznym. Na podstawie karty faktów spółki {ticker} opisz po polsku:
-trend (położenie kursu względem średnich kroczących), momentum (RSI, MACD)
-oraz zmienność (wstęgi Bollingera, zakres z 52 tygodni). Pisz rzeczowo, w 2–3 akapitach,
-bez rekomendacji kupna ani sprzedaży.
+trend, momentum (RSI, MACD) oraz zmienność (wstęgi Bollingera, zakres z 52 tygodni).
+Pisz rzeczowo, w 2–3 akapitach, bez rekomendacji kupna ani sprzedaży.
+
+Opisując trend:
+- oceń położenie kursu względem średnich SMA (krótkiej, średniej i długiej) oraz EMA;
+  kurs powyżej najdłuższej średniej wskazuje na trend wzrostowy, poniżej na spadkowy,
+- oceń wzajemny układ średnich: krótsza nad dłuższą oznacza silniejszy trend krótkoterminowy;
+  zbliżanie się lub przecięcie średnich opisz jako możliwy, a nie pewny sygnał zmiany trendu,
+- dużą odległość kursu od najdłuższej średniej opisz jako silny trend z podwyższonym ryzykiem
+  korekty, bez przesądzania o dalszym kierunku,
+- pamiętaj, że średnie reagują z opóźnieniem: zestaw je z miarami szybszymi
+  (EMA, RSI, zmiana kursu w ostatnim miesiącu) i zaznacz, gdy wskazują co innego.
 
 {rules}
 Karta faktów:
