@@ -46,7 +46,8 @@ raport jest przechowywany w sesji, więc nie powstaje ponownie przy każdej inte
 
 Wykresy powstają z danych bez udziału modelu językowego:
 
-- świece z SMA(20/50/200) i wstęgami Bollingera, wolumen, RSI(14) z poziomami 30/70, MACD,
+- świece ze średnimi SMA (domyślnie 20/50/200) i wstęgami Bollingera, wolumen,
+  RSI(14) z poziomami 30/70, MACD,
 - kurs spółki na tle NASDAQ-100 (ETF QQQ), oba znormalizowane do 100 na początku okresu,
 - obsunięcie od szczytu i zmienność krocząca z 30 sesji w skali roku,
 - mapa miesięcznych stóp zwrotu (rok × miesiąc),
@@ -54,6 +55,10 @@ Wykresy powstają z danych bez udziału modelu językowego:
 - stopa Fed, rentowność 10-letnich obligacji i inflacja CPI r/r.
 
 Wykres, dla którego brakuje danych (np. bez klucza FRED), jest pomijany.
+
+Okna średnich kroczących (trzy SMA i jedna EMA) można zmienić w panelu bocznym aplikacji;
+wartości domyślne ustawiają zmienne `SMA_WINDOWS` i `EMA_WINDOW`. Zmienione okna trafiają
+do wykresów, karty faktów i raportu (po jego ponownym wygenerowaniu).
 
 Raport wymaga modelu językowego. Dostawcę wybiera się zmienną `LLM_PROVIDER`:
 `gemini` (klucz `GOOGLE_API_KEY` z Google AI Studio, model w `GEMINI_MODEL`) albo `groq`

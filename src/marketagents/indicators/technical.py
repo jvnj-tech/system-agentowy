@@ -11,6 +11,8 @@ Definicje:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 
@@ -73,15 +75,41 @@ def bollinger_bands(close: pd.Series, window: int = 20, k: float = 2.0) -> pd.Da
     return pd.DataFrame({"bb_mid": mid, "bb_upper": mid + k * std, "bb_lower": mid - k * std})
 
 
-def compute_all(prices: pd.DataFrame) -> pd.DataFrame:
+@dataclass(frozen=True)
+class MovingAverages:
+    """Okna średnich kroczących: krótkie, średnie i długie dla SMA oraz okno EMA."""
+
+    sma: tuple[int, int, int] = (20, 50, 200)
+    ema: int = 20
+
+    def __post_init__(self) -> None:
+        short, mid, long = self.sma
+        if not 2 <= short < mid < long:
+            raise ValueError("Okna SMA muszą rosnąć: krótkie < średnie < długie (co najmniej 2)")
+        if self.ema < 2:
+            raise ValueError("Okno EMA musi wynosić co najmniej 2")
+
+    @property
+    def long(self) -> int:
+        return self.sma[-1]
+
+    @classmethod
+    def parse(cls, sma: str, ema: str) -> MovingAverages:
+        """Okna z tekstu, np. sma="20,50,200", ema="20" (zmienne SMA_WINDOWS, EMA_WINDOW)."""
+        windows = tuple(int(x) for x in sma.split(","))
+        if len(windows) != 3:
+            raise ValueError("SMA_WINDOWS musi zawierać trzy okna, np. 20,50,200")
+        return cls(windows, int(ema))
+
+
+def compute_all(prices: pd.DataFrame, ma: MovingAverages | None = None) -> pd.DataFrame:
     """Zestaw wskaźników używany w raporcie, liczony z kolumny close."""
+    ma = ma or MovingAverages()
     close = prices["close"]
     return pd.concat(
         [
-            sma(close, 20).rename("sma_20"),
-            sma(close, 50).rename("sma_50"),
-            sma(close, 200).rename("sma_200"),
-            ema(close, 20).rename("ema_20"),
+            *(sma(close, n).rename(f"sma_{n}") for n in ma.sma),
+            ema(close, ma.ema).rename(f"ema_{ma.ema}"),
             rsi(close, 14).rename("rsi_14"),
             macd(close),
             bollinger_bands(close),

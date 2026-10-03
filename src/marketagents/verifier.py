@@ -27,6 +27,12 @@ LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)
 
 # Okresy wskaźników, które mogą wystąpić w tekście jako nazwy, np. „RSI(14)”, „SMA 200”.
 DEFAULT_ALLOWED = frozenset({2, 9, 12, 14, 20, 26, 50, 52, 200})
+# Okna średnich ustawiane przez użytkownika są odczytywane z identyfikatorów faktów (sma_30).
+PERIOD_IN_ID = re.compile(r"^(?:sma|ema|dist_sma)_(\d+)$")
+
+
+def indicator_periods(facts: FactSheet) -> frozenset[int]:
+    return frozenset(int(m.group(1)) for f in facts if (m := PERIOD_IN_ID.match(f.id)))
 
 
 @dataclass
@@ -69,6 +75,7 @@ def _matches_fact(value: float, facts: FactSheet) -> bool:
 
 
 def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWED) -> Verification:
+    allowed = allowed | indicator_periods(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
 
     stripped = LIST_MARKER.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))

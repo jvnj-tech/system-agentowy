@@ -6,6 +6,8 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from marketagents.indicators import MovingAverages
+
 # Kolory serii w stałej kolejności (dobrane pod kątem czytelności przy daltonizmie).
 BLUE, ORANGE, AQUA = "#2a78d6", "#eb6834", "#1baf7a"
 UP, DOWN = "#1baf7a", "#e34948"
@@ -15,7 +17,9 @@ BAND = "rgba(128, 128, 128, 0.15)"
 GUIDE = "rgba(128, 128, 128, 0.6)"
 
 
-def technical_chart(prices: pd.DataFrame, indicators: pd.DataFrame) -> go.Figure:
+def technical_chart(
+    prices: pd.DataFrame, indicators: pd.DataFrame, ma: MovingAverages | None = None
+) -> go.Figure:
     """Świece z SMA i wstęgami Bollingera, pod nimi wolumen, RSI(14) i MACD na wspólnej osi."""
     fig = make_subplots(
         rows=4,
@@ -68,11 +72,9 @@ def technical_chart(prices: pd.DataFrame, indicators: pd.DataFrame) -> go.Figure
         row=1,
         col=1,
     )
-    for column, name, color in [
-        ("sma_20", "SMA(20)", BLUE),
-        ("sma_50", "SMA(50)", ORANGE),
-        ("sma_200", "SMA(200)", AQUA),
-    ]:
+    ma = ma or MovingAverages()
+    for n, color in zip(ma.sma, [BLUE, ORANGE, AQUA], strict=True):
+        column, name = f"sma_{n}", f"SMA({n})"
         fig.add_trace(
             go.Scatter(x=x, y=indicators[column], name=name, line={"color": color, "width": 2}),
             row=1,

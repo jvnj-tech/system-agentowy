@@ -31,7 +31,7 @@ from marketagents.data.prices import get_prices
 from marketagents.data.universe import nasdaq100
 from marketagents.facts import FactSheet
 from marketagents.graph import build_graph, run_report
-from marketagents.indicators import compute_all
+from marketagents.indicators import MovingAverages, compute_all
 from marketagents.llm import get_chat_model
 from marketagents.qa import answer_question
 
@@ -55,14 +55,16 @@ def chat_model():
 
 
 @st.cache_data(ttl=3600, show_spinner="Pobieranie notowań...")
-def chart_data(ticker: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None]:
+def chart_data(
+    ticker: str, sma: tuple[int, int, int], ema: int
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None]:
     settings, cache = resources()
     prices = get_prices(cache, ticker)
     try:
         annual = get_fundamentals(cache, ticker, settings.sec_user_agent)
     except Exception:  # noqa: BLE001
         annual = None
-    return prices, compute_all(prices), annual
+    return prices, compute_all(prices, MovingAverages(sma, ema)), annual
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -94,10 +96,10 @@ def describe_error(exc: Exception) -> str:
     return text
 
 
-def generate_report(ticker: str) -> dict:
+def generate_report(ticker: str, ma: MovingAverages) -> dict:
     """Uruchamia graf agentów i pokazuje postęp kolejnych etapów."""
     settings, cache = resources()
-    graph = build_graph(chat_model(), lambda t: load_market_data(settings, cache, t))
+    graph = build_graph(chat_model(), lambda t: load_market_data(settings, cache, t, ma))
     start = time.perf_counter()
     editor_runs = 0
 
@@ -115,10 +117,29 @@ def generate_report(ticker: str) -> dict:
         state = run_report(graph, ticker, on_step)
         elapsed = time.perf_counter() - start
         status.update(label=f"Raport gotowy po {elapsed:.0f} s", state="complete", expanded=False)
-    return {**state, "elapsed": elapsed}
+    return {**state, "elapsed": elapsed, "ma": ma}
 
 
-def sidebar() -> tuple[str | None, bool]:
+def ma_settings() -> MovingAverages | None:
+    """Okna średnich kroczących wybrane przez użytkownika (domyślnie z pliku .env)."""
+    default = resources()[0].moving_averages
+    with st.expander("Ustawienia średnich kroczących"):
+        cols = st.columns(3)
+        sma = tuple(
+            int(col.number_input(label, 2, 500, value, key=f"sma_{i}"))
+            for i, (col, label, value) in enumerate(
+                zip(cols, ["SMA krótka", "SMA średnia", "SMA długa"], default.sma, strict=True)
+            )
+        )
+        ema = int(st.number_input("EMA", 2, 500, default.ema, key="ema"))
+        try:
+            return MovingAverages(sma, ema)
+        except ValueError as exc:
+            st.error(str(exc))
+            return None
+
+
+def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
     companies = nasdaq100()
     labels = [f"{c['ticker']} — {c['name']}" for c in companies]
     with st.sidebar:
@@ -128,17 +149,24 @@ def sidebar() -> tuple[str | None, bool]:
         ticker = typed or choice.split(" — ")[0]
         if not TICKER.match(ticker):
             st.error("Niepoprawny symbol spółki.")
-            return None, False
+            return None, False, None
         cached = ticker in st.session_state.reports
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
-        clicked = st.button(label, type="primary", width="stretch")
+        ma = ma_settings()
+        clicked = st.button(label, type="primary", width="stretch", disabled=ma is None)
         settings = resources()[0]
         model = settings.groq_model if settings.llm_provider == "groq" else settings.gemini_model
         st.caption(f"Raport tworzą agenci na modelu {model}; generowanie trwa zwykle kilka minut.")
-    return ticker, clicked
+    return ticker, clicked, ma
 
 
-def show_report(ticker: str, result: dict) -> None:
+def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
+    used = result["ma"]
+    if ma is not None and ma != used:
+        st.info(
+            f"Raport powstał dla średnich SMA{used.sma} i EMA({used.ema}). "
+            "Nowe ustawienia zostaną uwzględnione po ponownym wygenerowaniu raportu."
+        )
     if result["verified"]:
         st.success(
             "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów "
@@ -167,9 +195,9 @@ def show_report(ticker: str, result: dict) -> None:
         )
 
 
-def show_charts(ticker: str) -> None:
+def show_charts(ticker: str, ma: MovingAverages) -> None:
     try:
-        prices, indicators, annual = chart_data(ticker)
+        prices, indicators, annual = chart_data(ticker, ma.sma, ma.ema)
     except Exception as exc:  # noqa: BLE001
         st.error(f"Nie udało się pobrać notowań {ticker}: {exc}")
         return
@@ -177,7 +205,7 @@ def show_charts(ticker: str) -> None:
     sessions = PERIODS[period]
     close = prices["close"].iloc[-sessions:]
     st.plotly_chart(
-        technical_chart(prices.iloc[-sessions:], indicators.iloc[-sessions:]),
+        technical_chart(prices.iloc[-sessions:], indicators.iloc[-sessions:], ma),
         width="stretch",
     )
 
@@ -270,14 +298,14 @@ def main() -> None:
     st.session_state.setdefault("reports", {})
     st.session_state.setdefault("chats", {})
 
-    ticker, clicked = sidebar()
+    ticker, clicked, ma = sidebar()
     if ticker is None:
         return
     st.title(ticker)
 
     if clicked:
         try:
-            st.session_state.reports[ticker] = generate_report(ticker)
+            st.session_state.reports[ticker] = generate_report(ticker, ma)
             st.session_state.chats.pop(ticker, None)
         except Exception as exc:  # noqa: BLE001
             st.error(f"Nie udało się wygenerować raportu: {describe_error(exc)}")
@@ -289,11 +317,11 @@ def main() -> None:
     )
     with report_tab:
         if result:
-            show_report(ticker, result)
+            show_report(ticker, result, ma)
         else:
             st.info("Wybierz spółkę i kliknij „Wygeneruj raport”.")
     with charts_tab:
-        show_charts(ticker)
+        show_charts(ticker, ma or resources()[0].moving_averages)
     with chat_tab:
         show_chat(ticker, result)
 

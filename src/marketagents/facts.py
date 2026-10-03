@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass
 import numpy as np
 import pandas as pd
 
+from marketagents.indicators import MovingAverages
+
 # Grupy faktów: każdy analityk dostaje fakty ze swojej grupy oraz fakty ogólne.
 TECHNICAL, FUNDAMENTAL, MACRO = "technical", "fundamental", "macro"
 
@@ -83,8 +85,11 @@ def _pct_change(close: pd.Series, sessions: int) -> float | None:
     return float((close.iloc[-1] / close.iloc[-1 - sessions] - 1) * 100)
 
 
-def technical_facts(ticker: str, prices: pd.DataFrame, indicators: pd.DataFrame) -> list[Fact]:
+def technical_facts(
+    ticker: str, prices: pd.DataFrame, indicators: pd.DataFrame, ma: MovingAverages | None = None
+) -> list[Fact]:
     """Fakty z notowań i wskaźników technicznych na ostatnią dostępną sesję."""
+    ma = ma or MovingAverages()
     close = prices["close"]
     last = indicators.iloc[-1]
     year = close.iloc[-252:]
@@ -119,10 +124,8 @@ def technical_facts(ticker: str, prices: pd.DataFrame, indicators: pd.DataFrame)
             facts.append(Fact(fid, label, change, "%", 1, TECHNICAL))
 
     indicator_facts = [
-        ("sma_20", "średnia krocząca SMA(20)", "USD", 2),
-        ("sma_50", "średnia krocząca SMA(50)", "USD", 2),
-        ("sma_200", "średnia krocząca SMA(200)", "USD", 2),
-        ("ema_20", "średnia wykładnicza EMA(20)", "USD", 2),
+        *((f"sma_{n}", f"średnia krocząca SMA({n})", "USD", 2) for n in ma.sma),
+        (f"ema_{ma.ema}", f"średnia wykładnicza EMA({ma.ema})", "USD", 2),
         ("rsi_14", "RSI(14)", "", 1),
         ("macd", "linia MACD(12, 26)", "", 2),
         ("macd_signal", "linia sygnału MACD(9)", "", 2),
@@ -135,11 +138,19 @@ def technical_facts(ticker: str, prices: pd.DataFrame, indicators: pd.DataFrame)
         if value is not None and np.isfinite(value):
             facts.append(Fact(fid, label, float(value), unit, decimals, TECHNICAL))
 
-    sma_200 = last.get("sma_200")
-    if sma_200 is not None and np.isfinite(sma_200):
-        distance = (close.iloc[-1] / sma_200 - 1) * 100
+    long = ma.long
+    sma_long = last.get(f"sma_{long}")
+    if sma_long is not None and np.isfinite(sma_long):
+        distance = (close.iloc[-1] / sma_long - 1) * 100
         facts.append(
-            Fact("dist_sma_200", "odległość kursu od SMA(200)", float(distance), "%", 1, TECHNICAL)
+            Fact(
+                f"dist_sma_{long}",
+                f"odległość kursu od SMA({long})",
+                float(distance),
+                "%",
+                1,
+                TECHNICAL,
+            )
         )
     return facts
 

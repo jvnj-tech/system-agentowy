@@ -33,7 +33,7 @@ def main(argv: list[str] | None = None) -> None:
 
     for ticker in args.tickers:
         prices = get_prices(cache, ticker, args.start)
-        indicators = compute_all(prices).iloc[-1]
+        indicators = compute_all(prices, settings.moving_averages).iloc[-1]
         fundamentals = get_fundamentals(cache, ticker, settings.sec_user_agent)
         news = get_news(cache, ticker, settings.finnhub_api_key)
         print(
@@ -55,13 +55,17 @@ STEP_NAMES = {
 }
 
 
-def load_market_data(settings, cache: DiskCache, ticker: str):
-    """Dane dla raportu. Brak klucza do źródła pomija tylko odpowiednią część analizy."""
+def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
+    """Dane dla raportu. Brak klucza do źródła pomija tylko odpowiednią część analizy.
+
+    ma: okna średnich kroczących; domyślnie z ustawień (SMA_WINDOWS, EMA_WINDOW).
+    """
     from marketagents.graph import MarketData
 
+    ma = ma or settings.moving_averages
     prices = get_prices(cache, ticker)
     close = float(prices["close"].iloc[-1])
-    facts = technical_facts(ticker, prices, compute_all(prices))
+    facts = technical_facts(ticker, prices, compute_all(prices, ma), ma)
     data = MarketData(facts=facts)
 
     sources = {

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from marketagents.indicators import MovingAverages
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -20,6 +22,7 @@ class Settings:
     gemini_model: str
     groq_model: str
     llm_rpm: float
+    moving_averages: MovingAverages = MovingAverages()
 
 
 def load_settings() -> Settings:
@@ -34,4 +37,7 @@ def load_settings() -> Settings:
         gemini_model=os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
         groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
         llm_rpm=float(os.getenv("LLM_RPM") or os.getenv("GEMINI_RPM") or "10"),
+        moving_averages=MovingAverages.parse(
+            os.getenv("SMA_WINDOWS", "20,50,200"), os.getenv("EMA_WINDOW", "20")
+        ),
     )

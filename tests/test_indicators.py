@@ -99,3 +99,23 @@ def test_compute_all_columns(close):
         "bb_lower",
     ]
     assert out.iloc[-1].notna().all()
+
+
+def test_custom_moving_average_windows(close):
+    from marketagents.indicators import MovingAverages
+
+    out = compute_all(pd.DataFrame({"close": close}), MovingAverages((10, 30, 150), 12))
+    assert {"sma_10", "sma_30", "sma_150", "ema_12"} <= set(out.columns)
+    assert "sma_200" not in out.columns
+    np.testing.assert_allclose(out["sma_30"].iloc[-1], close.iloc[-30:].mean())
+
+
+def test_moving_averages_validation():
+    from marketagents.indicators import MovingAverages
+
+    assert MovingAverages.parse("10, 30,150", "12") == MovingAverages((10, 30, 150), 12)
+    for windows in [(50, 20, 200), (20, 20, 200), (1, 20, 200)]:
+        with pytest.raises(ValueError):
+            MovingAverages(windows)
+    with pytest.raises(ValueError):
+        MovingAverages.parse("20,50", "20")

@@ -111,3 +111,18 @@ def test_group_selection_keeps_general_facts():
         ]
     )
     assert [f.id for f in sheet.group(MACRO)] == ["ticker", "b"]
+
+
+def test_technical_facts_follow_custom_windows(close):
+    from marketagents.indicators import MovingAverages
+    from marketagents.verifier import verify
+
+    ma = MovingAverages((10, 30, 150), 12)
+    prices = pd.DataFrame({"close": close})
+    facts = FactSheet(technical_facts("TEST", prices, compute_all(prices, ma), ma))
+    ids = {f.id for f in facts}
+    assert {"sma_10", "sma_30", "sma_150", "ema_12", "dist_sma_150"} <= ids
+    assert "sma_200" not in ids and "dist_sma_200" not in ids
+    assert facts["dist_sma_150"].label == "odległość kursu od SMA(150)"
+    # Nazwy wskaźników z ustawionymi okresami nie są traktowane jak zmyślone liczby.
+    assert verify("Kurs jest powyżej SMA(150) i SMA(30), EMA(12) rośnie.", facts).ok
