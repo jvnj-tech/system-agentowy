@@ -105,3 +105,13 @@ def test_technical_analyst_prompt_describes_moving_averages():
     assert "wzajemny układ średnich" in technical
     assert "z opóźnieniem" in technical
     assert "bez rekomendacji" in technical
+
+
+def test_wrong_interpretation_goes_back_to_editor_and_is_marked():
+    wrong = "RSI {{rsi_14}} oznacza wykupienie rynku." + END
+    responses = ["Analiza."] + [wrong] * (MAX_FIXES + 1)
+    state, llm = run(responses, MarketData(facts=TECH))
+    assert not state["verified"]
+    assert "wykupienie oznacza RSI powyżej 70" in llm.prompts[-1]
+    assert "rynku. [niezweryfikowana interpretacja]" in state["report"]
+    assert 'class="fact"' in state["report_html"]

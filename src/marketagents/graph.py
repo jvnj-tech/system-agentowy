@@ -20,6 +20,7 @@ from langgraph.graph import END, START, StateGraph
 
 from marketagents import prompts
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet
+from marketagents.interpretation import mark_sentences
 from marketagents.llm import message_text
 from marketagents.verifier import mark_unverified, render, verify
 
@@ -43,6 +44,7 @@ class ReportState(TypedDict, total=False):
     draft: str
     issues: list[str]
     unverified: list[str]
+    flagged: list[str]
     attempts: int
     report: str
     report_html: str
@@ -107,6 +109,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
         return {
             "issues": issues,
             "unverified": result.to_mark,
+            "flagged": result.flagged_sentences,
             "attempts": state.get("attempts", 0) + 1,
             "report": result.rendered,
             "verified": not issues,
@@ -114,12 +117,12 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
 
     def finalize(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
-        html = render(state["draft"], facts, html=True)
         if state["verified"]:
-            return {"report_html": html}
+            return {"report_html": render(state["draft"], facts, html=True)}
+        draft = mark_sentences(state["draft"], state.get("flagged", []))
         return {
-            "report": mark_unverified(state["report"], state["unverified"]),
-            "report_html": mark_unverified(html, state["unverified"]),
+            "report": mark_unverified(render(draft, facts), state["unverified"]),
+            "report_html": mark_unverified(render(draft, facts, html=True), state["unverified"]),
         }
 
     def after_verification(state: ReportState) -> str:

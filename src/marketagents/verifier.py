@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from html import escape
 
 from marketagents.facts import FactSheet
+from marketagents.interpretation import InterpretationIssue, check_interpretations
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 # Model czasem otacza odwołanie znakami ` jak kod; przy podstawianiu są one usuwane.
@@ -42,11 +43,19 @@ class Verification:
     unknown_ids: list[str] = field(default_factory=list)
     unverified_numbers: list[str] = field(default_factory=list)
     wrong_years: list[str] = field(default_factory=list)
+    interpretations: list[InterpretationIssue] = field(default_factory=list)
     checked_numbers: int = 0
 
     @property
     def ok(self) -> bool:
-        return not self.unknown_ids and not self.unverified_numbers and not self.wrong_years
+        return not (
+            self.unknown_ids or self.unverified_numbers or self.wrong_years or self.interpretations
+        )
+
+    @property
+    def flagged_sentences(self) -> list[str]:
+        """Zdania z błędną interpretacją liczby (do oznaczenia, jeśli nie zostaną poprawione)."""
+        return [i.sentence for i in self.interpretations]
 
     @property
     def to_mark(self) -> list[str]:
@@ -64,6 +73,7 @@ class Verification:
             "sprawdź okres, którego dotyczy zdanie"
             for y in self.wrong_years
         ]
+        out += [i.message for i in self.interpretations]
         return out
 
 
@@ -125,6 +135,7 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
         unknown_ids=unknown,
         unverified_numbers=unverified,
         wrong_years=wrong_years,
+        interpretations=check_interpretations(text, facts),
         checked_numbers=checked,
     )
 

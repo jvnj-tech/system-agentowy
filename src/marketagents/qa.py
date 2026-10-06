@@ -13,8 +13,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from marketagents import prompts
 from marketagents.facts import FactSheet
+from marketagents.interpretation import mark_sentences
 from marketagents.llm import message_text
-from marketagents.verifier import mark_unverified, verify
+from marketagents.verifier import mark_unverified, render, verify
 
 MAX_FIXES = 1
 MAX_HISTORY = 6
@@ -60,4 +61,5 @@ def answer_question(
         issues = "\n".join(f"- {i}" for i in result.issues())
         fix = prompts.QA_FIX.format(issues=issues, draft=draft)
         draft = message_text(llm.invoke(prompt + "\n\n" + fix))
-    return Answer(mark_unverified(result.rendered, result.to_mark), verified=False)
+    marked = render(mark_sentences(draft, result.flagged_sentences), facts)
+    return Answer(mark_unverified(marked, result.to_mark), verified=False)

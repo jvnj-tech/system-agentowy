@@ -173,13 +173,15 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
         )
     if result["verified"]:
         st.success(
-            "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów "
+            "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, "
+            "a ich opis jest z nimi zgodny "
             f"(wersje redakcji: {result['attempts']}, czas: {result['elapsed']:.0f} s)."
         )
     else:
         st.warning(
-            "Części liczb nie udało się zweryfikować; są oznaczone w tekście jako "
-            f"[niezweryfikowane] (wersje redakcji: {result['attempts']})."
+            "Części liczb lub ich opisów nie udało się zweryfikować; są oznaczone w tekście "
+            "jako [niezweryfikowane] lub [niezweryfikowana interpretacja] "
+            f"(wersje redakcji: {result['attempts']})."
         )
     st.markdown(FACT_STYLE + result.get("report_html", result["report"]), unsafe_allow_html=True)
     st.caption("Najedź kursorem na liczbę, aby zobaczyć jej źródło i sposób obliczenia.")
