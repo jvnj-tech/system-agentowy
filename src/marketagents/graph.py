@@ -6,6 +6,7 @@ dane -> fakty --+--> analityk fundamentalny --+-> redaktor -> weryfikator --(zgo
                  \\-> analityk makro          -/       +--(błędy)-----+
 
 Analitycy działają równolegle; analityk, dla którego zabrakło danych, jest pomijany.
+Każda analiza jest od razu weryfikowana i w razie błędów raz poprawiana przez analityka.
 """
 
 from __future__ import annotations

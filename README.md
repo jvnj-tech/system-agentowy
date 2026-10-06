@@ -85,9 +85,18 @@ i karty faktów, z tymi samymi zasadami odwołań i weryfikacją liczb.
 
 Liczby liczy kod, a model językowy tylko je interpretuje. Agenci nie wpisują wartości
 do tekstu, lecz odwołania do karty faktów w postaci `{{rsi_14}}`, które są podstawiane
-przy składaniu raportu. Weryfikator sprawdza, czy każde odwołanie istnieje i czy w tekście
-nie pojawiła się liczba spoza karty. Jeśli tak, raport wraca do redaktora z listą błędów
-(najwyżej dwa razy), a liczby, których nie udało się poprawić, są oznaczane w raporcie.
+przy składaniu raportu. Weryfikator sprawdza, czy:
+
+- każde odwołanie istnieje i w tekście nie pojawiła się liczba spoza karty,
+- lata wymienione w tekście odpowiadają datom z karty faktów,
+- opis jest zgodny z liczbą: kierunek zmiany (wzrost/spadek), strefy RSI (wykupienie powyżej
+  70, wyprzedanie poniżej 30) oraz położenie kursu względem średniej kroczącej.
+
+Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz poprawić. Gotowy
+raport w razie błędów wraca do redaktora z ich listą (najwyżej dwa razy), a to, czego nie
+udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]” lub
+„[niezweryfikowana interpretacja]”. Każda liczba w raporcie ma w aplikacji podpowiedź
+ze źródłem danych i sposobem obliczenia.
 
 ## Testy
 
@@ -107,7 +116,8 @@ src/marketagents/
   config.py              konfiguracja ze zmiennych środowiskowych
   cli.py                 polecenia: pobieranie danych i generowanie raportu
   facts.py               karta faktów
-  verifier.py            weryfikacja liczb w raporcie
+  verifier.py            weryfikacja liczb i lat w raporcie
+  interpretation.py      zgodność opisu z liczbami (kierunek, RSI, średnie)
   graph.py               graf agentów (LangGraph)
   prompts.py             instrukcje dla agentów
   llm.py                 połączenie z modelem (Gemini lub Groq)
