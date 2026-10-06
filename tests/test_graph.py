@@ -115,3 +115,14 @@ def test_wrong_interpretation_goes_back_to_editor_and_is_marked():
     assert "wykupienie oznacza RSI powyżej 70" in llm.prompts[-1]
     assert "rynku. [niezweryfikowana interpretacja]" in state["report"]
     assert 'class="fact"' in state["report_html"]
+
+
+def test_analyst_output_is_verified_and_fixed_before_editor():
+    state, llm = run(
+        ["RSI wynosi 70,1.", "RSI wynosi {{rsi_14}}.", "Raport {{rsi_14}}." + END],
+        MarketData(facts=TECH),
+    )
+    assert state["analyses"]["techniczna"] == "RSI wynosi {{rsi_14}}."
+    assert state["analyst_fixes"] == 1
+    assert "Weryfikator znalazł w Twojej analizie" in llm.prompts[1]
+    assert state["verified"] and state["attempts"] == 1

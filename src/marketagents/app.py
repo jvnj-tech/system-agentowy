@@ -175,7 +175,8 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
         st.success(
             "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, "
             "a ich opis jest z nimi zgodny "
-            f"(wersje redakcji: {result['attempts']}, czas: {result['elapsed']:.0f} s)."
+            f"(wersje redakcji: {result['attempts']}, poprawki analityków: "
+            f"{result.get('analyst_fixes', 0)}, czas: {result['elapsed']:.0f} s)."
         )
     else:
         st.warning(

@@ -25,6 +25,8 @@ from marketagents.llm import message_text
 from marketagents.verifier import mark_unverified, render, verify
 
 MAX_FIXES = 2
+# Analiza cząstkowa jest sprawdzana od razu i może zostać raz poprawiona przez analityka.
+ANALYST_FIXES = 1
 MAX_NEWS = 15
 # Ostatnia sekcja raportu; jej brak oznacza, że model urwał odpowiedź.
 LAST_SECTION = "## Ograniczenia analizy"
@@ -41,6 +43,7 @@ class ReportState(TypedDict, total=False):
     facts: list[dict]
     news: list[dict]
     analyses: Annotated[dict[str, str], operator.or_]
+    analyst_fixes: Annotated[int, operator.add]
     draft: str
     issues: list[str]
     unverified: list[str]
@@ -81,7 +84,17 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
                 facts=facts.as_prompt_table(),
                 news=_format_news(state.get("news", [])),
             )
-            return {"analyses": {name: message_text(llm.invoke(prompt))}}
+            text = message_text(llm.invoke(prompt))
+            fixes = 0
+            while fixes < ANALYST_FIXES:
+                result = verify(text, facts)
+                if result.ok:
+                    break
+                issues = "\n".join(f"- {i}" for i in result.issues())
+                fix = prompts.ANALYST_FIX.format(issues=issues, draft=text)
+                text = message_text(llm.invoke(prompt + "\n\n" + fix))
+                fixes += 1
+            return {"analyses": {name: text}, "analyst_fixes": fixes}
 
         return node
 

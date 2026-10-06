@@ -57,6 +57,16 @@ Poprzednia wersja:
 {draft}
 """
 
+ANALYST_FIX = """\
+Weryfikator znalazł w Twojej analizie następujące problemy:
+{issues}
+
+Popraw analizę tak, aby je usunąć, zachowując resztę treści. Zwróć wyłącznie poprawioną analizę.
+
+Poprzednia wersja:
+{draft}
+"""
+
 FUNDAMENTAL_ANALYST = """\
 Jesteś analitykiem fundamentalnym. Na podstawie karty faktów spółki {ticker} opisz po polsku
 jej kondycję finansową: skalę i dynamikę przychodów, rentowność (marże, ROE),
