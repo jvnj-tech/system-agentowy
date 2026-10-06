@@ -106,7 +106,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             issues.append(f"Raport jest niekompletny: brak sekcji „{LAST_SECTION}”")
         return {
             "issues": issues,
-            "unverified": result.unverified_numbers,
+            "unverified": result.to_mark,
             "attempts": state.get("attempts", 0) + 1,
             "report": result.rendered,
             "verified": not issues,

@@ -60,4 +60,4 @@ def answer_question(
         issues = "\n".join(f"- {i}" for i in result.issues())
         fix = prompts.QA_FIX.format(issues=issues, draft=draft)
         draft = message_text(llm.invoke(prompt + "\n\n" + fix))
-    return Answer(mark_unverified(result.rendered, result.unverified_numbers), verified=False)
+    return Answer(mark_unverified(result.rendered, result.to_mark), verified=False)

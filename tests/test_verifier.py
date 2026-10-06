@@ -86,3 +86,15 @@ def test_mark_unverified_ignores_html_attributes():
     html = '<span class="fact" title="RSI(14): 14 sesji">61,2</span> i 14.'
     assert mark_unverified(html, ["14"]).endswith("i 14 [niezweryfikowane].")
     assert 'title="RSI(14): 14 sesji"' in mark_unverified(html, ["14"])
+
+
+def test_years_must_match_dates_in_fact_sheet():
+    facts = FactSheet(
+        [Fact("as_of", "data", "2026-10-01"), Fact("fy_end", "rok obrotowy", "2025-09-27")]
+    )
+    assert verify("W 2025 r. i w 2024 r. przychody rosły.", facts).ok
+    result = verify("W 2021 r. spółka miała rekordowy rok.", facts)
+    assert result.wrong_years == ["2021"]
+    assert result.unverified_numbers == []
+    assert "Rok 2021" in result.issues()[0]
+    assert mark_unverified(result.rendered, result.to_mark).startswith("W 2021 [niezweryfikowane]")

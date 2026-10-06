@@ -41,17 +41,28 @@ class Verification:
     rendered: str
     unknown_ids: list[str] = field(default_factory=list)
     unverified_numbers: list[str] = field(default_factory=list)
+    wrong_years: list[str] = field(default_factory=list)
     checked_numbers: int = 0
 
     @property
     def ok(self) -> bool:
-        return not self.unknown_ids and not self.unverified_numbers
+        return not self.unknown_ids and not self.unverified_numbers and not self.wrong_years
+
+    @property
+    def to_mark(self) -> list[str]:
+        """Wartości, które trzeba oznaczyć w tekście, jeśli nie zostaną poprawione."""
+        return self.unverified_numbers + self.wrong_years
 
     def issues(self) -> list[str]:
         out = [f"Nieznany identyfikator faktu: {{{{{i}}}}}" for i in self.unknown_ids]
         out += [
             f"Liczba „{n}” nie pochodzi z karty faktów; zastąp ją odwołaniem {{{{identyfikator}}}}"
             for n in self.unverified_numbers
+        ]
+        out += [
+            f"Rok {y} nie odpowiada żadnej dacie w karcie faktów; "
+            "sprawdź okres, którego dotyczy zdanie"
+            for y in self.wrong_years
         ]
         return out
 
@@ -75,11 +86,29 @@ def _matches_fact(value: float, facts: FactSheet) -> bool:
     return False
 
 
+# Rok w tekście, np. „w 2025 r.” (bez dat ISO, które są usuwane wcześniej).
+YEAR = re.compile(r"(?<![\w.,-])(?:19|20)\d{2}(?![\w,.]?\d)")
+
+
+def fact_years(facts: FactSheet) -> frozenset[int]:
+    """Lata, o których może mówić raport: z dat w karcie faktów oraz rok wcześniejszy
+    (zmiany rok do roku i notowania z 52 tygodni obejmują poprzedni rok)."""
+    years: set[int] = set()
+    for fact in facts:
+        if isinstance(fact.value, str) and ISO_DATE.fullmatch(fact.value):
+            year = int(fact.value[:4])
+            years |= {year, year - 1}
+    return frozenset(years)
+
+
 def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWED) -> Verification:
     allowed = allowed | indicator_periods(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
 
     stripped = LIST_MARKER.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
+    years = fact_years(facts)
+    wrong_years = [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
+    stripped = YEAR.sub(" ", stripped)
     unverified: list[str] = []
     checked = 0
     for match in NUMBER.finditer(stripped):
@@ -95,6 +124,7 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
         rendered=render(text, facts),
         unknown_ids=unknown,
         unverified_numbers=unverified,
+        wrong_years=wrong_years,
         checked_numbers=checked,
     )
 
