@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from html import escape
 
 from marketagents.facts import FactSheet
 
@@ -102,7 +103,9 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
 TRAILING_UNIT = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}(\s*(?:USD|%|mld USD))?(?![\w])")
 
 
-def render(text: str, facts: FactSheet) -> str:
+def render(text: str, facts: FactSheet, html: bool = False) -> str:
+    """Podstawia wartości w miejsce odwołań. W wersji HTML liczba ma podpowiedź ze źródłem."""
+
     def substitute(match: re.Match) -> str:
         fact_id, trailing = match.group(1), match.group(2) or ""
         if fact_id not in facts:
@@ -110,18 +113,26 @@ def render(text: str, facts: FactSheet) -> str:
         fact = facts[fact_id]
         if trailing and trailing.strip() == fact.unit:
             trailing = ""
-        return fact.formatted() + trailing
+        value = fact.formatted()
+        if html:
+            hint = escape(f"{fact.label}: {fact.source}" if fact.source else fact.label)
+            value = f'<span class="fact" title="{hint}">{escape(value)}</span>'
+        return value + trailing
 
     return TRAILING_UNIT.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))
 
 
+HTML_TAG = re.compile(r"(<[^>]*>)")
+
+
 def mark_unverified(rendered: str, numbers: list[str]) -> str:
-    """Oznacza w tekście liczby, których nie udało się zweryfikować."""
+    """Oznacza liczby, których nie udało się zweryfikować (z pominięciem znaczników HTML)."""
+    parts = HTML_TAG.split(rendered)
     for raw in sorted(set(numbers), key=len, reverse=True):
         # Bez dopasowań wewnątrz dat w rodzaju 2026-10-02.
-        rendered = re.sub(
-            rf"(?<![\w.,])(?<!\d-){re.escape(raw)}(?![\w]|-\d)",
-            f"{raw} [niezweryfikowane]",
-            rendered,
-        )
-    return rendered
+        pattern = re.compile(rf"(?<![\w.,])(?<!\d-){re.escape(raw)}(?![\w]|-\d)")
+        parts = [
+            p if HTML_TAG.fullmatch(p) else pattern.sub(f"{raw} [niezweryfikowane]", p)
+            for p in parts
+        ]
+    return "".join(parts)

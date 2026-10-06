@@ -21,7 +21,7 @@ from langgraph.graph import END, START, StateGraph
 from marketagents import prompts
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet
 from marketagents.llm import message_text
-from marketagents.verifier import mark_unverified, verify
+from marketagents.verifier import mark_unverified, render, verify
 
 MAX_FIXES = 2
 MAX_NEWS = 15
@@ -45,6 +45,7 @@ class ReportState(TypedDict, total=False):
     unverified: list[str]
     attempts: int
     report: str
+    report_html: str
     verified: bool
 
 
@@ -112,9 +113,14 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
         }
 
     def finalize(state: ReportState) -> ReportState:
+        facts = FactSheet.from_records(state["facts"])
+        html = render(state["draft"], facts, html=True)
         if state["verified"]:
-            return {}
-        return {"report": mark_unverified(state["report"], state["unverified"])}
+            return {"report_html": html}
+        return {
+            "report": mark_unverified(state["report"], state["unverified"]),
+            "report_html": mark_unverified(html, state["unverified"]),
+        }
 
     def after_verification(state: ReportState) -> str:
         if state["verified"] or state["attempts"] > MAX_FIXES:

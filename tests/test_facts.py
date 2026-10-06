@@ -47,6 +47,8 @@ def test_technical_facts_from_prices(close):
     assert facts["change_1m"].value == pytest.approx(expected)
     assert facts["as_of"].value == close.index[-1].strftime("%Y-%m-%d")
     assert {"rsi_14", "macd", "sma_200", "dist_sma_200"} <= {f.id for f in facts}
+    assert facts["rsi_14"].source.startswith("Yahoo Finance, ceny zamknięcia do ")
+    assert "Wildera" in facts["rsi_14"].source
 
 
 def test_technical_facts_skip_indicators_without_history(close):
@@ -79,6 +81,8 @@ def test_fundamental_facts():
     assert facts["pe_ratio"].value == pytest.approx(30.0)
     assert "fy_gross_margin" not in facts
     assert all(f.group == FUNDAMENTAL for f in facts)
+    assert facts["fy_net_margin"].source.endswith("zysk netto / przychody")
+    assert "2025-12-31" in facts["fy_revenue"].source
 
 
 def test_fundamental_facts_empty():
@@ -100,6 +104,7 @@ def test_macro_facts():
     assert facts["macro_inflation_date"].value == "2025-02-01"
     assert facts["macro_unemployment_date"].value == "2025-01-01"
     assert "macro_10y" not in facts
+    assert facts["macro_fed_rate"].source == "FRED, seria FEDFUNDS, odczyt z 2025-02-01"
 
 
 def test_group_selection_keeps_general_facts():

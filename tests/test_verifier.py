@@ -74,3 +74,15 @@ def test_number_in_compound_word_is_ignored():
 def test_mark_unverified_skips_dates():
     text = "Na dzień 2026-10-01 RSI wynosi 10."
     assert mark_unverified(text, ["10"]) == "Na dzień 2026-10-01 RSI wynosi 10 [niezweryfikowane]."
+
+
+def test_render_html_adds_source_hint():
+    facts = FactSheet([Fact("rsi_14", "RSI(14)", 61.23, "", 1, source="Yahoo Finance")])
+    html = render("RSI {{rsi_14}}.", facts, html=True)
+    assert html == 'RSI <span class="fact" title="RSI(14): Yahoo Finance">61,2</span>.'
+
+
+def test_mark_unverified_ignores_html_attributes():
+    html = '<span class="fact" title="RSI(14): 14 sesji">61,2</span> i 14.'
+    assert mark_unverified(html, ["14"]).endswith("i 14 [niezweryfikowane].")
+    assert 'title="RSI(14): 14 sesji"' in mark_unverified(html, ["14"])

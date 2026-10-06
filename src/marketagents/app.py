@@ -96,6 +96,10 @@ def describe_error(exc: Exception) -> str:
     return text
 
 
+# Liczby z karty faktów są podkreślone; podpowiedź pokazuje ich źródło.
+FACT_STYLE = "<style>.fact { border-bottom: 1px dotted; cursor: help; }</style>\n\n"
+
+
 def generate_report(ticker: str, ma: MovingAverages) -> dict:
     """Uruchamia graf agentów i pokazuje postęp kolejnych etapów."""
     settings, cache = resources()
@@ -177,7 +181,8 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
             "Części liczb nie udało się zweryfikować; są oznaczone w tekście jako "
             f"[niezweryfikowane] (wersje redakcji: {result['attempts']})."
         )
-    st.markdown(result["report"])
+    st.markdown(FACT_STYLE + result.get("report_html", result["report"]), unsafe_allow_html=True)
+    st.caption("Najedź kursorem na liczbę, aby zobaczyć jej źródło i sposób obliczenia.")
     st.download_button(
         "Pobierz raport (.md)",
         result["report"],
@@ -188,7 +193,15 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
         facts = FactSheet.from_records(result["facts"])
         st.dataframe(
             pd.DataFrame(
-                [{"identyfikator": f.id, "opis": f.label, "wartość": f.formatted()} for f in facts]
+                [
+                    {
+                        "identyfikator": f.id,
+                        "opis": f.label,
+                        "wartość": f.formatted(),
+                        "źródło": f.source,
+                    }
+                    for f in facts
+                ]
             ),
             hide_index=True,
             width="stretch",
