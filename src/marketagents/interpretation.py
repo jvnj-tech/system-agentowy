@@ -4,6 +4,9 @@ Weryfikator liczb pilnuje, aby wartości pochodziły z karty faktów, ale nie wy
 w których opis przeczy liczbie, np. „kurs wzrósł o {{change_1m}}” przy ujemnej zmianie.
 Reguły są celowo zachowawcze: zdanie jest sprawdzane tylko wtedy, gdy jednoznacznie
 odnosi się do jednej wartości, a opis nie jest zanegowany ani złagodzony.
+
+W ten sam sposób sprawdzany jest okres zmiany: zdanie „w ciągu roku kurs spadł
+o {{change_1m}}” przypisuje zmianie z ostatniego miesiąca niewłaściwy okres.
 """
 
 from __future__ import annotations
@@ -40,6 +43,26 @@ HEDGE = re.compile(
     re.IGNORECASE,
 )
 RSI_LOW, RSI_HIGH = 30, 70
+NEGATION = re.compile(r"\bnie\b", re.IGNORECASE)
+
+MONTH, QUARTER, YEAR = "miesiąc", "3 miesiące", "rok"
+# Okres, którego dotyczy fakt. Sprawdzane są zmiany; pozostałe fakty z okresem służą tylko
+# do pominięcia zdań, w których stoją obok siebie wielkości z różnych okresów.
+PERIODS = {
+    "change_1m": MONTH,
+    "change_3m": QUARTER,
+    "change_1y": YEAR,
+    "fy_revenue_growth": YEAR,
+    "high_52w": YEAR,
+    "low_52w": YEAR,
+}
+PERIOD_CHECKED = frozenset({"change_1m", "change_3m", "change_1y", "fy_revenue_growth"})
+# Kolejność ma znaczenie: „3 miesiące” i „12 miesięcy” są usuwane przed szukaniem „miesiąca”.
+PERIOD_WORDS = [
+    (QUARTER, r"(?:3|trzy|trzech)[\s-]+miesi\w*|trzymiesięczn\w*|kwarta\w*"),
+    (YEAR, r"rok|roku|rokiem|roczn\w*|(?:12|dwunast\w*)[\s-]+miesi\w*|52[\s-]+tygod\w*|r/r"),
+    (MONTH, r"miesiąc|miesiąca|miesiącu|miesiącem|miesięczn\w*"),
+]
 
 
 @dataclass(frozen=True)
@@ -125,13 +148,73 @@ def _check_position(sentence: str, refs: list[str], facts: FactSheet) -> Interpr
     return None
 
 
+def periods_in(words: str) -> list[str]:
+    """Okresy wymienione w tekście, np. [„rok”] dla „w ostatnim roku”."""
+    found = []
+    for period, pattern in PERIOD_WORDS:
+        regex = re.compile(rf"(?<![\w])(?:{pattern})(?![\w])", re.IGNORECASE)
+        if regex.search(words):
+            found.append(period)
+            words = regex.sub(" ", words)
+    return found
+
+
+def _check_period(sentence: str, refs: list[str], facts: FactSheet) -> InterpretationIssue | None:
+    """Okres zmiany: zdanie z wielkościami z jednego okresu, bez przeczenia."""
+    ids = [r for r in refs if r in facts and r in PERIODS]
+    if len({PERIODS[r] for r in ids}) != 1 or NEGATION.search(sentence):
+        return None
+    checked = [r for r in ids if r in PERIOD_CHECKED]
+    if not checked:
+        return None
+    fact_id, expected = checked[0], PERIODS[checked[0]]
+    found = periods_in(PLACEHOLDER.sub(" ", sentence))
+    if found and expected not in found:
+        why = f"zdanie podaje okres „{found[0]}”, a wartość dotyczy okresu „{expected}”"
+        return _issue(sentence, fact_id, facts, why)
+    return None
+
+
+def label(fact_id: str, facts: FactSheet) -> str | None:
+    """Ocena słowna faktu wyznaczona przez kod (kolumna „ocena” w karcie dla modelu)."""
+    value = _numeric(facts, fact_id)
+    if value is None:
+        return None
+    if DIRECTIONAL.match(fact_id):
+        return "wzrost" if value > 0 else "spadek" if value < 0 else None
+    if fact_id == "rsi_14":
+        if value > RSI_HIGH:
+            return "wykupienie"
+        return "wyprzedanie" if value < RSI_LOW else "strefa neutralna"
+    if DISTANCE.match(fact_id):
+        diff = value
+    elif AVERAGE.match(fact_id):
+        close = _numeric(facts, "close")
+        diff = None if close is None else close - value
+    else:
+        return None
+    if not diff:
+        return None
+    return "kurs powyżej średniej" if diff > 0 else "kurs poniżej średniej"
+
+
+def prompt_table(facts: FactSheet) -> str:
+    """Karta faktów dla modelu z oceną słowną, której tekst ma się trzymać."""
+    lines = ["| identyfikator | opis | wartość | ocena |", "| --- | --- | --- | --- |"]
+    for f in facts:
+        lines.append(
+            f"| {{{{{f.id}}}}} | {f.label} | {f.formatted()} | {label(f.id, facts) or ''} |"
+        )
+    return "\n".join(lines)
+
+
 def check_interpretations(text: str, facts: FactSheet) -> list[InterpretationIssue]:
     issues: list[InterpretationIssue] = []
     for sentence in sentences(text):
         refs = PLACEHOLDER.findall(sentence)
         if not refs:
             continue
-        for check in (_check_direction, _check_rsi, _check_position):
+        for check in (_check_direction, _check_rsi, _check_position, _check_period):
             issue = check(sentence, refs, facts)
             if issue:
                 issues.append(issue)

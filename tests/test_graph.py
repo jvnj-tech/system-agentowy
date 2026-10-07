@@ -126,3 +126,18 @@ def test_analyst_output_is_verified_and_fixed_before_editor():
     assert state["analyst_fixes"] == 1
     assert "Weryfikator znalazł w Twojej analizie" in llm.prompts[1]
     assert state["verified"] and state["attempts"] == 1
+
+
+def test_wrong_period_goes_back_to_editor_with_labelled_facts():
+    facts = TECH + [Fact("change_1m", "zmiana 1M", -3.2, "%", 1, TECHNICAL)]
+    state, llm = run(
+        [
+            "Analiza.",
+            "W ostatnim roku kurs spadł o {{change_1m}}." + END,
+            "W ostatnim miesiącu kurs spadł o {{change_1m}}." + END,
+        ],
+        MarketData(facts=facts),
+    )
+    assert state["verified"] and state["attempts"] == 2
+    assert "okres „rok”" in llm.prompts[-1]
+    assert "| -3,2% | spadek |" in llm.prompts[0]

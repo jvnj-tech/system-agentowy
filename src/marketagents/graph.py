@@ -21,7 +21,7 @@ from langgraph.graph import END, START, StateGraph
 
 from marketagents import prompts
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet
-from marketagents.interpretation import mark_sentences
+from marketagents.interpretation import mark_sentences, prompt_table
 from marketagents.llm import message_text
 from marketagents.verifier import mark_unverified, render, verify
 
@@ -82,7 +82,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             prompt = template.format(
                 ticker=state["ticker"],
                 rules=prompts.PLACEHOLDER_RULES,
-                facts=facts.as_prompt_table(),
+                facts=prompt_table(facts),
                 news=_format_news(state.get("news", [])),
             )
             text = message_text(llm.invoke(prompt))
@@ -105,7 +105,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
         prompt = prompts.EDITOR.format(
             ticker=state["ticker"],
             rules=prompts.PLACEHOLDER_RULES,
-            facts=facts.as_prompt_table(),
+            facts=prompt_table(facts),
             analyses="\n\n".join(f"### Analiza: {k}\n{v}" for k, v in analyses.items()),
         )
         if state.get("issues"):

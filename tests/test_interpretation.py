@@ -1,5 +1,12 @@
 from marketagents.facts import Fact, FactSheet
-from marketagents.interpretation import MARKER, check_interpretations, mark_sentences
+from marketagents.interpretation import (
+    MARKER,
+    check_interpretations,
+    label,
+    mark_sentences,
+    periods_in,
+    prompt_table,
+)
 
 FACTS = FactSheet(
     [
@@ -56,3 +63,33 @@ def test_mark_sentences():
         mark_sentences(text, flagged)
         == f"Kurs wzrósł o {{{{change_1m}}}}.{MARKER} RSI {{{{rsi_14}}}}."
     )
+
+
+def test_period_words():
+    assert periods_in("w ostatnich 3 miesiącach") == ["3 miesiące"]
+    assert periods_in("w ciągu 12 miesięcy, czyli r/r") == ["rok"]
+    assert periods_in("w ostatnim miesiącu i w skali roku") == ["rok", "miesiąc"]
+
+
+def test_period_of_change_must_match_fact():
+    issues = messages("W ostatnim roku kurs spadł o {{change_1m}}.")
+    assert len(issues) == 1 and "okres „rok”" in issues[0] and "„miesiąc”" in issues[0]
+    assert messages("W ciągu 3 miesięcy kurs wzrósł o {{change_1y}}.")
+    assert not messages("W ostatnim miesiącu kurs spadł o {{change_1m}}.")
+    assert not messages("W ciągu 12 miesięcy kurs wzrósł o {{change_1y}}.")
+    assert not messages("Kurs spadł o {{change_1m}}.")
+    # wielkości z różnych okresów w jednym zdaniu -- bez oceny
+    assert not messages("W roku kurs zyskał {{change_1y}}, a w ostatnim miesiącu {{change_1m}}.")
+
+
+def test_labels_in_prompt_table():
+    assert label("change_1m", FACTS) == "spadek"
+    assert label("change_1y", FACTS) == "wzrost"
+    assert label("rsi_14", FACTS) == "strefa neutralna"
+    assert label("sma_200", FACTS) == "kurs poniżej średniej"
+    assert label("sma_50", FACTS) == "kurs powyżej średniej"
+    assert label("dist_sma_200", FACTS) == "kurs poniżej średniej"
+    assert label("close", FACTS) is None
+    table = prompt_table(FACTS)
+    assert "| {{change_1m}} | zmiana 1M | -3,2% | spadek |" in table
+    assert "| {{close}} | kurs | 100,00 USD |  |" in table

@@ -13,7 +13,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from marketagents import prompts
 from marketagents.facts import FactSheet
-from marketagents.interpretation import mark_sentences
+from marketagents.interpretation import mark_sentences, prompt_table
 from marketagents.llm import message_text
 from marketagents.verifier import mark_unverified, render, verify
 
@@ -46,7 +46,7 @@ def answer_question(
     prompt = prompts.QA.format(
         ticker=ticker,
         rules=prompts.PLACEHOLDER_RULES,
-        facts=facts.as_prompt_table(),
+        facts=prompt_table(facts),
         report=report,
         history=_format_history(history or []),
         question=question,

@@ -8,6 +8,9 @@ Zasady dotyczące liczb:
 - Wolno pisać tylko nazwy wskaźników z ich okresami, np. „RSI(14)” albo „SMA(200)”.
 - Nie wymyślaj identyfikatorów spoza karty faktów.
 - Nie licz niczego samodzielnie: jeśli potrzebnej wartości nie ma w karcie, opisz zjawisko słowami.
+- Kolumna „ocena” w karcie faktów podaje kierunek zmiany, strefę RSI albo położenie kursu
+  względem średniej, wyznaczone przez kod. Słowa w tekście muszą się z nią zgadzać.
+- Okres zmiany (miesiąc, 3 miesiące, rok) podawaj taki, jak w opisie faktu w karcie.
 """
 
 TECHNICAL_ANALYST = """\
