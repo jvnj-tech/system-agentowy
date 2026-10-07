@@ -2,8 +2,15 @@
 
 Działa bez modelu językowego, więc jej wynik jest powtarzalny. Sprawdza, czy:
 1. każde odwołanie {{identyfikator}} wskazuje istniejący fakt,
-2. poza odwołaniami w tekście nie ma liczb, których nie ma w karcie faktów
-   (z dokładnością do zaokrąglenia), z wyjątkiem dozwolonych parametrów wskaźników.
+2. w tekście nie ma liczb wpisanych poza odwołaniami, z wyjątkiem okresów wskaźników
+   (np. „RSI(14)”), liczb z opisów faktów i nazw indeksów. Liczba wpisana wprost jest
+   błędem nawet wtedy, gdy równa się wartości z karty, bo nie wiadomo, której wielkości
+   dotyczy: przy dopuszczeniu liczb zgodnych z faktem z tego samego zdania test
+   wstrzykniętych błędów pokazał, że podmiana na wartość sąsiedniego faktu (np. SMA(50)
+   zamiast SMA(20)) przechodzi niezauważona. Zgodność z kartą służy tylko do podpowiedzi,
+   którego odwołania użyć przy poprawce,
+3. lata w tekście odpowiadają datom z karty faktów,
+4. słowny opis liczby i okres zmiany zgadzają się z kartą (moduł interpretation).
 """
 
 from __future__ import annotations
@@ -12,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from html import escape
 
-from marketagents.facts import FactSheet
+from marketagents.facts import Fact, FactSheet
 from marketagents.interpretation import InterpretationIssue, check_interpretations
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
@@ -26,6 +33,14 @@ NUMBER = re.compile(
 )
 ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)
+INDEX_NAME = re.compile(r"NASDAQ[- ]?100|S&P[- ]?500|Russell[- ]?2000", re.IGNORECASE)
+# Koniec zdania: znak końca i odstęp albo nowy wiersz. Kropka po skrócie („ok. 61”, „np. RSI”)
+# nie kończy zdania, żeby podpowiedź wskazała fakt, przy którym stoi liczba.
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+ABBREVIATION = re.compile(
+    r"(?<![\w.])(?:ok|np|m\.in|tj|tzn|tzw|wg|ang|por|zob|ca|mln|mld|tys|pkt|proc|r)\.$",
+    re.IGNORECASE,
+)
 
 # Okresy wskaźników, które mogą wystąpić w tekście jako nazwy, np. „RSI(14)”, „SMA 200”.
 DEFAULT_ALLOWED = frozenset({2, 9, 12, 14, 20, 26, 50, 52, 200})
@@ -45,6 +60,10 @@ class Verification:
     wrong_years: list[str] = field(default_factory=list)
     interpretations: list[InterpretationIssue] = field(default_factory=list)
     checked_numbers: int = 0
+    # Liczba wpisana wprost -> fakt o tej wartości (podpowiedź dla autora tekstu).
+    suggestions: dict[str, str] = field(default_factory=dict)
+    # Liczby, które powtarzają wartość faktu, do którego odwołuje się to samo zdanie.
+    repeated: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -64,10 +83,23 @@ class Verification:
 
     def issues(self) -> list[str]:
         out = [f"Nieznany identyfikator faktu: {{{{{i}}}}}" for i in self.unknown_ids]
-        out += [
-            f"Liczba „{n}” nie pochodzi z karty faktów; zastąp ją odwołaniem {{{{identyfikator}}}}"
-            for n in self.unverified_numbers
-        ]
+        for n in self.unverified_numbers:
+            fact_id = self.suggestions.get(n)
+            if n in self.repeated:
+                out.append(
+                    f"Liczba „{n}” powtarza bez odwołania wartość {{{{{fact_id}}}}}, "
+                    "która już stoi w zdaniu; usuń ją"
+                )
+            elif fact_id:
+                out.append(
+                    f"Liczba „{n}” jest wpisana bez odwołania; jeśli to wartość "
+                    f"{{{{{fact_id}}}}}, wstaw w jej miejsce odwołanie {{{{{fact_id}}}}}"
+                )
+            else:
+                out.append(
+                    f"Liczba „{n}” nie pochodzi z karty faktów; "
+                    "zastąp ją odwołaniem {{identyfikator}}"
+                )
         out += [
             f"Rok {y} nie odpowiada żadnej dacie w karcie faktów; "
             "sprawdź okres, którego dotyczy zdanie"
@@ -82,18 +114,34 @@ def parse_number(text: str) -> float:
     return float(cleaned.replace(",", "."))
 
 
-def _matches_fact(value: float, facts: FactSheet) -> bool:
-    for fact in facts:
-        if isinstance(fact.value, str):
+def matches_fact(value: float, fact: Fact) -> bool:
+    """Czy liczba może być zapisem wartości faktu (do podpowiedzi, którego odwołania użyć)."""
+    if isinstance(fact.value, str):
+        return False
+    tolerance = 0.5 * 10 ** (-fact.decimals) + 1e-9
+    # Spadek bywa opisany słownie („spadek o 3,2%”), więc liczy się też wartość bezwzględna.
+    if abs(value - fact.value) <= tolerance or abs(value - abs(fact.value)) <= tolerance:
+        return True
+    # Liczba zaokrąglona przez autora do mniejszej liczby miejsc po przecinku.
+    return float(value).is_integer() and abs(abs(value) - abs(fact.value)) < 0.5
+
+
+def label_numbers(facts: FactSheet) -> frozenset[int]:
+    """Liczby całkowite z opisów faktów, np. „3 miesiącach”, „10-letnich obligacji”."""
+    return frozenset(int(raw) for fact in facts for raw in re.findall(r"\d+", fact.label))
+
+
+def sentences(text: str) -> list[str]:
+    """Podział tekstu na zdania; kropka w liczbie („3.2”) i po skrócie nie kończy zdania."""
+    out, start = [], 0
+    for match in SENTENCE_END.finditer(text):
+        head = text[start : match.start()]
+        if "\n" not in match.group(0) and ABBREVIATION.search(head):
             continue
-        tolerance = 0.5 * 10 ** (-fact.decimals) + 1e-9
-        # Spadek bywa opisany słownie („spadek o 3,2%”), więc liczy się też wartość bezwzględna.
-        if abs(value - fact.value) <= tolerance or abs(value - abs(fact.value)) <= tolerance:
-            return True
-        # Liczba zaokrąglona przez autora do mniejszej liczby miejsc po przecinku.
-        if float(value).is_integer() and abs(abs(value) - abs(fact.value)) < 0.5:
-            return True
-    return False
+        out.append(head)
+        start = match.end()
+    out.append(text[start:])
+    return [s for s in out if s.strip()]
 
 
 # Rok w tekście, np. „w 2025 r.” (bez dat ISO, które są usuwane wcześniej).
@@ -112,23 +160,33 @@ def fact_years(facts: FactSheet) -> frozenset[int]:
 
 
 def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWED) -> Verification:
-    allowed = allowed | indicator_periods(facts)
+    allowed = allowed | indicator_periods(facts) | label_numbers(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
-
-    stripped = LIST_MARKER.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
     years = fact_years(facts)
-    wrong_years = [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
-    stripped = YEAR.sub(" ", stripped)
+
+    wrong_years: list[str] = []
     unverified: list[str] = []
+    suggestions: dict[str, str] = {}
+    repeated: list[str] = []
     checked = 0
-    for match in NUMBER.finditer(stripped):
-        raw = match.group(0)
-        value = parse_number(raw)
-        checked += 1
-        if value.is_integer() and int(value) in allowed:
-            continue
-        if not _matches_fact(value, facts):
+    for sentence in sentences(LIST_MARKER.sub(" ", text)):
+        referenced = [facts[i] for i in PLACEHOLDER.findall(sentence) if i in facts]
+        stripped = INDEX_NAME.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", sentence)))
+        wrong_years += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
+        for match in NUMBER.finditer(YEAR.sub(" ", stripped)):
+            raw = match.group(0)
+            checked += 1
+            # Okres wskaźnika to liczba całkowita bez znaku („SMA 50”), a nie np. „50,0”.
+            if raw.isdigit() and int(raw) in allowed:
+                continue
             unverified.append(raw)
+            value = parse_number(raw)
+            same = next((f for f in referenced if matches_fact(value, f)), None)
+            other = same or next((f for f in facts if matches_fact(value, f)), None)
+            if other is not None:
+                suggestions[raw] = other.id
+            if same is not None:
+                repeated.append(raw)
 
     return Verification(
         rendered=render(text, facts),
@@ -137,6 +195,8 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
         wrong_years=wrong_years,
         interpretations=check_interpretations(text, facts),
         checked_numbers=checked,
+        suggestions=suggestions,
+        repeated=repeated,
     )
 
 
@@ -170,8 +230,8 @@ def mark_unverified(rendered: str, numbers: list[str]) -> str:
     """Oznacza liczby, których nie udało się zweryfikować (z pominięciem znaczników HTML)."""
     parts = HTML_TAG.split(rendered)
     for raw in sorted(set(numbers), key=len, reverse=True):
-        # Bez dopasowań wewnątrz dat w rodzaju 2026-10-02.
-        pattern = re.compile(rf"(?<![\w.,])(?<!\d-){re.escape(raw)}(?![\w]|-\d)")
+        # Bez dopasowań wewnątrz dat w rodzaju 2026-10-02 i części innej liczby („61” w „61,2”).
+        pattern = re.compile(rf"(?<![\w.,])(?<!\d-){re.escape(raw)}(?![\w]|-\d|[.,]\d)")
         parts = [
             p if HTML_TAG.fullmatch(p) else pattern.sub(f"{raw} [niezweryfikowane]", p)
             for p in parts

@@ -35,14 +35,40 @@ def test_invented_number_is_reported():
     assert not result.ok
 
 
-def test_numbers_matching_facts_are_accepted():
-    text = "Kurs 1 234,56 USD, RSI 61,2 (ok. 61), spadek o 3,2% w miesiąc, SMA(200), 52 tygodnie."
-    assert verify(text, FACTS).ok
+def test_every_number_outside_references_is_reported():
+    text = "Kurs 1 234,56 USD, RSI 61,2, spadek o 3,2% w miesiąc, SMA(200), 52 tygodnie."
+    result = verify(text, FACTS)
+    assert result.unverified_numbers == ["1 234,56", "61,2", "3,2"]
+    assert result.suggestions == {"1 234,56": "close", "61,2": "rsi_14", "3,2": "change_1m"}
+    assert "wstaw w jej miejsce odwołanie {{rsi_14}}" in result.issues()[1]
 
 
-def test_rounding_tolerance_follows_fact_precision():
-    assert not verify("RSI 61,4", FACTS).ok
-    assert verify("RSI 61,2", FACTS).ok
+def test_value_of_neighbouring_fact_is_reported():
+    # 61 to zaokrąglone RSI wpisane przy kursie, a nie przy RSI.
+    result = verify("Kurs {{close}}, a RSI 61.", FACTS)
+    assert result.unverified_numbers == ["61"]
+    assert result.suggestions == {"61": "rsi_14"}
+
+
+def test_repeated_value_of_referenced_fact_should_be_removed():
+    result = verify("RSI(14) wynosi {{rsi_14}} (ok. 61). Kurs {{close}}.", FACTS)
+    assert result.repeated == ["61"]
+    assert "usuń ją" in result.issues()[0]
+
+
+def test_indicator_periods_are_allowed_only_as_plain_integers():
+    assert verify("SMA 50 i SMA(200), MACD(12, 26, 9).", FACTS).ok
+    assert verify("RSI 50,0 i -14.", FACTS).unverified_numbers == ["50,0", "-14"]
+
+
+def test_index_names_are_not_numbers():
+    assert verify("Kurs {{close}} na tle NASDAQ-100 i S&P 500.", FACTS).ok
+
+
+def test_numbers_from_fact_labels_are_allowed():
+    facts = FactSheet([Fact("change_3m", "zmiana kursu w ostatnich 3 miesiącach", 5.0, "%", 1)])
+    assert verify("W ciągu 3 miesięcy kurs wzrósł o {{change_3m}}.", facts).ok
+    assert not verify("W ciągu 4 miesięcy kurs wzrósł o {{change_3m}}.", facts).ok
 
 
 def test_list_markers_and_dates_are_ignored():
@@ -53,6 +79,8 @@ def test_list_markers_and_dates_are_ignored():
 def test_mark_unverified():
     rendered = render("RSI 75,3 i 75,30.", FACTS)
     assert mark_unverified(rendered, ["75,3"]) == "RSI 75,3 [niezweryfikowane] i 75,30."
+    marked = mark_unverified("RSI 61,2 to ok. 61.", ["61"])
+    assert marked == "RSI 61,2 to ok. 61 [niezweryfikowane]."
 
 
 def test_placeholders_in_code_ticks_render_as_plain_text():
