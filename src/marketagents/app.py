@@ -98,7 +98,20 @@ def describe_error(exc: Exception) -> str:
 
 
 # Liczby z karty faktów są podkreślone; podpowiedź pokazuje ich źródło.
-FACT_STYLE = "<style>.fact { border-bottom: 1px dotted; cursor: help; }</style>\n\n"
+# Podpowiedź ze źródłem liczby pokazywana po kliknięciu (fokus) lub najechaniu kursorem.
+FACT_STYLE = """<style>
+.fact { border-bottom: 1px dotted; cursor: pointer; position: relative; }
+.fact:focus { outline: none; background: rgba(128, 128, 128, 0.2); border-radius: 3px; }
+.fact:hover::after, .fact:focus::after {
+  content: attr(data-zrodlo); position: absolute; left: 0; top: 1.6em; z-index: 10;
+  width: max-content; max-width: 24rem; padding: 0.4rem 0.6rem; border-radius: 6px;
+  background: #262730; color: #fafafa; font-size: 0.8rem; line-height: 1.35;
+  white-space: normal; border: 1px solid rgba(250, 250, 250, 0.25);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+</style>
+
+"""
 
 
 def generate_report(ticker: str, ma: MovingAverages) -> dict:
@@ -207,7 +220,7 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
             f"i {output_tokens} wyjściowych."
         )
     st.markdown(FACT_STYLE + result.get("report_html", result["report"]), unsafe_allow_html=True)
-    st.caption("Najedź kursorem na liczbę, aby zobaczyć jej źródło i sposób obliczenia.")
+    st.caption("Kliknij liczbę lub najedź na nią kursorem, aby zobaczyć jej źródło.")
     st.download_button(
         "Pobierz raport (.md)",
         result["report"],

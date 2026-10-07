@@ -105,7 +105,7 @@ Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz popra
 raport w razie błędów wraca do redaktora z ich listą (najwyżej dwa razy), a to, czego nie
 udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]” lub
 „[niezweryfikowana interpretacja]”. Każda liczba w raporcie ma w aplikacji podpowiedź
-ze źródłem danych i sposobem obliczenia.
+ze źródłem danych i sposobem obliczenia, widoczną po kliknięciu liczby lub najechaniu na nią.
 
 ## Ewaluacja
 

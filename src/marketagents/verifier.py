@@ -205,7 +205,11 @@ TRAILING_UNIT = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}(\s*(?:USD|%|mld USD))
 
 
 def render(text: str, facts: FactSheet, html: bool = False) -> str:
-    """Podstawia wartości w miejsce odwołań. W wersji HTML liczba ma podpowiedź ze źródłem."""
+    """Podstawia wartości w miejsce odwołań.
+
+    W wersji HTML liczba ma podpowiedź ze źródłem w atrybucie data-zrodlo, którą pokazuje CSS
+    po kliknięciu lub najechaniu; tekst podpowiedzi nie trafia do treści raportu.
+    """
 
     def substitute(match: re.Match) -> str:
         fact_id, trailing = match.group(1), match.group(2) or ""
@@ -217,7 +221,7 @@ def render(text: str, facts: FactSheet, html: bool = False) -> str:
         value = fact.formatted()
         if html:
             hint = escape(f"{fact.label}: {fact.source}" if fact.source else fact.label)
-            value = f'<span class="fact" title="{hint}">{escape(value)}</span>'
+            value = f'<span class="fact" tabindex="0" data-zrodlo="{hint}">{escape(value)}</span>'
         return value + trailing
 
     return TRAILING_UNIT.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))

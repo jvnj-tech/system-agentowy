@@ -107,13 +107,15 @@ def test_mark_unverified_skips_dates():
 def test_render_html_adds_source_hint():
     facts = FactSheet([Fact("rsi_14", "RSI(14)", 61.23, "", 1, source="Yahoo Finance")])
     html = render("RSI {{rsi_14}}.", facts, html=True)
-    assert html == 'RSI <span class="fact" title="RSI(14): Yahoo Finance">61,2</span>.'
+    assert html == (
+        'RSI <span class="fact" tabindex="0" data-zrodlo="RSI(14): Yahoo Finance">61,2</span>.'
+    )
 
 
 def test_mark_unverified_ignores_html_attributes():
-    html = '<span class="fact" title="RSI(14): 14 sesji">61,2</span> i 14.'
+    html = '<span class="fact" tabindex="0" data-zrodlo="RSI(14): 14 sesji">61,2</span> i 14.'
     assert mark_unverified(html, ["14"]).endswith("i 14 [niezweryfikowane].")
-    assert 'title="RSI(14): 14 sesji"' in mark_unverified(html, ["14"])
+    assert 'data-zrodlo="RSI(14): 14 sesji"' in mark_unverified(html, ["14"])
 
 
 def test_years_must_match_dates_in_fact_sheet():
