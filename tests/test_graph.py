@@ -141,3 +141,26 @@ def test_wrong_period_goes_back_to_editor_with_labelled_facts():
     assert state["verified"] and state["attempts"] == 2
     assert "okres „rok”" in llm.prompts[-1]
     assert "| -3,2% | spadek |" in llm.prompts[0]
+
+
+class PromptLLM(FakeListChatModel):
+    """Model zastępczy odpowiadający według treści polecenia (analitycy działają równolegle)."""
+
+    responses: list[str] = ["-"]
+
+    def _call(self, messages, *args, **kwargs):
+        prompt = messages[-1].content
+        if "Jesteś redaktorem" in prompt:
+            return "Raport {{close}}." + END
+        if "Weryfikator znalazł w Twojej analizie" in prompt:
+            return "Analiza poprawiona."
+        return "Analiza z liczbą 12,3."
+
+
+def test_run_report_sums_analyst_fixes_and_issue_counts_like_invoke():
+    data = MarketData(facts=TECH + FUND)
+    graph = build_graph(PromptLLM(), lambda ticker: data)
+    state = run_report(graph, "TEST")
+    assert state["analyst_fixes"] == 2
+    assert state["issue_counts"] == [0]
+    assert state["analyst_fixes"] == graph.invoke({"ticker": "TEST"})["analyst_fixes"]

@@ -7,3 +7,4 @@ dist/
 .cache/
 .env
 .DS_Store
+wyniki/

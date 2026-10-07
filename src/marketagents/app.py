@@ -29,6 +29,7 @@ from marketagents.data.fundamentals import get_fundamentals
 from marketagents.data.macro import get_macro
 from marketagents.data.prices import get_prices
 from marketagents.data.universe import nasdaq100
+from marketagents.evaluation import UsageCounter, append_record, report_record
 from marketagents.facts import FactSheet
 from marketagents.graph import build_graph, run_report
 from marketagents.indicators import MovingAverages, compute_all
@@ -118,10 +119,26 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
                     name += f" (poprawka {editor_runs - 1})"
             st.write(f"✓ {name} — {time.perf_counter() - start:.0f} s")
 
-        state = run_report(graph, ticker, on_step)
+        usage = UsageCounter()
+        state = run_report(graph, ticker, on_step, config={"callbacks": [usage]})
         elapsed = time.perf_counter() - start
         status.update(label=f"Raport gotowy po {elapsed:.0f} s", state="complete", expanded=False)
-    return {**state, "elapsed": elapsed, "ma": ma}
+    # Każdy raport trafia do pliku wyników ewaluacji (marketagents-eval podsumowanie).
+    try:
+        append_record(report_record(ticker, state, elapsed, usage, model_name(settings)))
+    except OSError as exc:
+        st.caption(f"Nie udało się zapisać wyników ewaluacji: {exc}")
+    return {
+        **state,
+        "elapsed": elapsed,
+        "ma": ma,
+        "llm_calls": usage.calls,
+        "tokens": usage.tokens(),
+    }
+
+
+def model_name(settings) -> str:
+    return settings.groq_model if settings.llm_provider == "groq" else settings.gemini_model
 
 
 def ma_settings() -> MovingAverages | None:
@@ -158,8 +175,7 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
         ma = ma_settings()
         clicked = st.button(label, type="primary", width="stretch", disabled=ma is None)
-        settings = resources()[0]
-        model = settings.groq_model if settings.llm_provider == "groq" else settings.gemini_model
+        model = model_name(resources()[0])
         st.caption(f"Raport tworzą agenci na modelu {model}; generowanie trwa zwykle kilka minut.")
     return ticker, clicked, ma
 
@@ -183,6 +199,12 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
             "Części liczb lub ich opisów nie udało się zweryfikować; są oznaczone w tekście "
             "jako [niezweryfikowane] lub [niezweryfikowana interpretacja] "
             f"(wersje redakcji: {result['attempts']})."
+        )
+    input_tokens, output_tokens = result.get("tokens", (None, None))
+    if input_tokens is not None:
+        st.caption(
+            f"Wywołania modelu: {result['llm_calls']}, tokeny: {input_tokens} wejściowych "
+            f"i {output_tokens} wyjściowych."
         )
     st.markdown(FACT_STYLE + result.get("report_html", result["report"]), unsafe_allow_html=True)
     st.caption("Najedź kursorem na liczbę, aby zobaczyć jej źródło i sposób obliczenia.")

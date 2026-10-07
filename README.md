@@ -11,7 +11,8 @@ generuje raport analityczny z interaktywnymi wykresami i pozwala zadawać pytani
 - [x] Wskaźniki techniczne z testami
 - [x] Graf agentów (LangGraph): czterech analityków, redaktor i weryfikator liczb
 - [x] Interfejs (Streamlit + Plotly) z asystentem pytań o raport
-- [ ] Ewaluacja: backtesting i jakość raportów
+- [x] Ewaluacja jakości raportów (`marketagents-eval`)
+- [ ] Ewaluacja: backtesting wskaźników
 
 ## Źródła danych
 
@@ -87,16 +88,43 @@ Liczby liczy kod, a model językowy tylko je interpretuje. Agenci nie wpisują w
 do tekstu, lecz odwołania do karty faktów w postaci `{{rsi_14}}`, które są podstawiane
 przy składaniu raportu. Weryfikator sprawdza, czy:
 
-- każde odwołanie istnieje i w tekście nie pojawiła się liczba spoza karty,
+- każde odwołanie istnieje, a w tekście nie ma liczby wpisanej poza odwołaniem (poza okresami
+  wskaźników, np. „RSI(14)”). Liczba wpisana wprost jest błędem nawet wtedy, gdy zgadza się
+  z kartą, bo nie wiadomo, której wielkości dotyczy; autor dostaje podpowiedź, którego
+  odwołania użyć,
 - lata wymienione w tekście odpowiadają datom z karty faktów,
 - opis jest zgodny z liczbą: kierunek zmiany (wzrost/spadek), strefy RSI (wykupienie powyżej
-  70, wyprzedanie poniżej 30) oraz położenie kursu względem średniej kroczącej.
+  70, wyprzedanie poniżej 30) oraz położenie kursu względem średniej kroczącej,
+- okres zmiany jest zgodny z kartą: zmiana z ostatniego miesiąca nie może być opisana
+  jako zmiana roczna.
+
+Karta faktów, którą dostaje model, ma kolumnę „ocena” z kierunkiem zmiany, strefą RSI
+i położeniem kursu względem średniej, wyznaczonymi przez kod.
 
 Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz poprawić. Gotowy
 raport w razie błędów wraca do redaktora z ich listą (najwyżej dwa razy), a to, czego nie
 udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]” lub
 „[niezweryfikowana interpretacja]”. Każda liczba w raporcie ma w aplikacji podpowiedź
 ze źródłem danych i sposobem obliczenia.
+
+## Ewaluacja
+
+Każdy raport wygenerowany w aplikacji jest dopisywany do pliku `wyniki/raporty.jsonl`
+(czas, wywołania modelu, tokeny, poprawki analityków, liczba wersji redakcji, problemy
+w kolejnych wersjach, oznaczone liczby i zdania). Polecenie `marketagents-eval` zbiera
+z niego wyniki:
+
+```bash
+uv run marketagents-eval raporty AAPL MSFT NVDA          # raporty z kartą faktów
+uv run marketagents-eval raporty AAPL MSFT --bez-karty   # model sam przepisuje liczby
+uv run marketagents-eval podsumowanie                    # tabela wyników
+uv run marketagents-eval bledy --sedzia --csv bledy.csv  # wstrzyknięte błędy
+```
+
+Wariant bez karty faktów pokazuje, ile liczb spoza danych pojawia się, gdy model sam
+przepisuje wartości i nikt ich nie sprawdza. Test wstrzykniętych błędów zmienia
+w zweryfikowanych raportach po jednej liczbie, opisie, okresie lub roku i sprawdza,
+ile zmian wykrywa weryfikator, a ile model językowy w roli sędziego (opcja `--sedzia`).
 
 ## Testy
 
@@ -117,7 +145,8 @@ src/marketagents/
   cli.py                 polecenia: pobieranie danych i generowanie raportu
   facts.py               karta faktów
   verifier.py            weryfikacja liczb i lat w raporcie
-  interpretation.py      zgodność opisu z liczbami (kierunek, RSI, średnie)
+  interpretation.py      zgodność opisu z liczbami (kierunek, RSI, średnie, okres zmiany)
+  evaluation.py          ewaluacja: wyniki raportów, wariant bez karty, wstrzyknięte błędy
   graph.py               graf agentów (LangGraph)
   prompts.py             instrukcje dla agentów
   llm.py                 połączenie z modelem (Gemini lub Groq)

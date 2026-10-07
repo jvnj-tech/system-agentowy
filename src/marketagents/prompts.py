@@ -13,6 +13,13 @@ Zasady dotyczące liczb:
 - Okres zmiany (miesiąc, 3 miesiące, rok) podawaj taki, jak w opisie faktu w karcie.
 """
 
+# Wariant porównawczy do ewaluacji: model sam przepisuje liczby, bez odwołań i weryfikatora.
+PLAIN_NUMBER_RULES = """\
+Zasady dotyczące liczb:
+- Wartości liczbowe przepisuj z tabeli danych w zapisie polskim (przecinek dziesiętny).
+- Nie licz niczego samodzielnie: jeśli potrzebnej wartości nie ma w tabeli, opisz zjawisko słowami.
+"""
+
 TECHNICAL_ANALYST = """\
 Jesteś analitykiem technicznym. Na podstawie karty faktów spółki {ticker} opisz po polsku:
 trend, momentum (RSI, MACD) oraz zmienność (wstęgi Bollingera, zakres z 52 tygodni).
@@ -131,4 +138,20 @@ Popraw odpowiedź tak, aby je usunąć. Zwróć wyłącznie poprawioną odpowied
 
 Poprzednia wersja:
 {draft}
+"""
+
+JUDGE = """\
+Jesteś recenzentem raportów analitycznych. Sprawdź, czy raport o spółce {ticker} jest zgodny
+z tabelą danych: czy każda liczba w raporcie odpowiada wartości z tabeli i czy jej słowny opis
+(wzrost lub spadek, strefa RSI, położenie kursu względem średniej, okres zmiany, rok)
+zgadza się z danymi. Pomiń styl i kompletność raportu.
+W pierwszym wierszu odpowiedz jednym słowem: BŁĄD, jeśli raport zawiera choć jedną
+niezgodność z tabelą, albo POPRAWNY, jeśli nie zawiera żadnej. W drugim wierszu przytocz
+niezgodny fragment.
+
+Tabela danych:
+{facts}
+
+Raport:
+{report}
 """

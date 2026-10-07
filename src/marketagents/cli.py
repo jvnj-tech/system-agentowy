@@ -111,7 +111,7 @@ def report(argv: list[str] | None = None) -> None:
     )
     print()
 
-    status = "zweryfikowany" if state["verified"] else "z niezweryfikowanymi liczbami"
+    status = "zweryfikowany" if state["verified"] else "z niezweryfikowanymi liczbami lub opisami"
     print(state["report"])
     print(f"\n---\nRaport {status}, liczba prób redakcji: {state['attempts']}")
     if args.out:

@@ -47,6 +47,8 @@ class ReportState(TypedDict, total=False):
     analyst_fixes: Annotated[int, operator.add]
     draft: str
     issues: list[str]
+    # Liczba problemów znalezionych przez weryfikator w kolejnych wersjach raportu.
+    issue_counts: Annotated[list[int], operator.add]
     unverified: list[str]
     flagged: list[str]
     attempts: int
@@ -122,6 +124,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             issues.append(f"Raport jest niekompletny: brak sekcji „{LAST_SECTION}”")
         return {
             "issues": issues,
+            "issue_counts": [len(issues)],
             "unverified": result.to_mark,
             "flagged": result.flagged_sentences,
             "attempts": state.get("attempts", 0) + 1,
@@ -167,14 +170,27 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
     return graph.compile()
 
 
-def run_report(graph, ticker: str, on_step: Callable[[str], None] | None = None) -> ReportState:
-    """Uruchamia graf etap po etapie; on_step dostaje nazwę każdego zakończonego węzła."""
+def run_report(
+    graph,
+    ticker: str,
+    on_step: Callable[[str], None] | None = None,
+    config: dict | None = None,
+) -> ReportState:
+    """Uruchamia graf etap po etapie; on_step dostaje nazwę każdego zakończonego węzła.
+
+    config trafia do LangGraph, np. z obiektem liczącym tokeny w config["callbacks"].
+    Pola z reduktorem w ReportState są łączone tak jak w graph.invoke.
+    """
     state: ReportState = {"ticker": ticker}
-    for update in graph.stream(state, stream_mode="updates"):
+    for update in graph.stream(state, config=config, stream_mode="updates"):
         for node, values in update.items():
             for key, value in (values or {}).items():
                 if key == "analyses":
                     state.setdefault("analyses", {}).update(value)
+                elif key == "issue_counts":
+                    state.setdefault("issue_counts", []).extend(value)
+                elif key == "analyst_fixes":
+                    state["analyst_fixes"] = state.get("analyst_fixes", 0) + value
                 else:
                     state[key] = value
             if on_step:
