@@ -197,25 +197,6 @@ def models_description() -> str:
     return ", ".join(names)
 
 
-def ma_settings() -> MovingAverages | None:
-    """Okna średnich kroczących wybrane przez użytkownika (domyślnie z pliku .env)."""
-    default = resources()[0].moving_averages
-    with st.expander("Ustawienia średnich kroczących"):
-        cols = st.columns(3)
-        sma = tuple(
-            int(col.number_input(label, 2, 500, value, key=f"sma_{i}"))
-            for i, (col, label, value) in enumerate(
-                zip(cols, ["SMA krótka", "SMA średnia", "SMA długa"], default.sma, strict=True)
-            )
-        )
-        ema = int(st.number_input("EMA", 2, 500, default.ema, key="ema"))
-        try:
-            return MovingAverages(sma, ema)
-        except ValueError as exc:
-            st.error(str(exc))
-            return None
-
-
 def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
     index = companies_now()
     labels = [f"{c['ticker']} — {c['name']}" for c in index.companies]
@@ -229,19 +210,14 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
             return None, False, None
         cached = ticker in st.session_state.reports
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
-        ma = ma_settings()
-        clicked = st.button(label, type="primary", width="stretch", disabled=ma is None)
+        # Okna średnich kroczących z pliku .env (SMA_WINDOWS, EMA_WINDOW).
+        ma = resources()[0].moving_averages
+        clicked = st.button(label, type="primary", width="stretch")
         st.caption(f"Model: {current_model()}")
     return ticker, clicked, ma
 
 
-def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
-    used = result["ma"]
-    if ma is not None and ma != used:
-        st.info(
-            f"Raport powstał dla średnich SMA{used.sma} i EMA({used.ema}). "
-            "Nowe ustawienia zostaną uwzględnione po ponownym wygenerowaniu raportu."
-        )
+def show_report(ticker: str, result: dict) -> None:
     if result["verified"]:
         st.success(
             "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, ich opis zgadza się "
@@ -416,11 +392,11 @@ def main() -> None:
     )
     with report_tab:
         if result:
-            show_report(ticker, result, ma)
+            show_report(ticker, result)
         else:
             st.info("Wybierz spółkę i kliknij „Wygeneruj raport”.")
     with charts_tab:
-        show_charts(ticker, ma or resources()[0].moving_averages)
+        show_charts(ticker, ma)
     with chat_tab:
         show_chat(ticker, result)
 

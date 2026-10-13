@@ -59,9 +59,8 @@ Wykresy powstają z danych bez udziału modelu językowego:
 
 Wykres, dla którego brakuje danych (np. bez klucza FRED), jest pomijany.
 
-Okna średnich kroczących (trzy SMA i jedna EMA) można zmienić w panelu bocznym aplikacji;
-wartości domyślne ustawiają zmienne `SMA_WINDOWS` i `EMA_WINDOW`. Zmienione okna trafiają
-do wykresów, karty faktów i raportu (po jego ponownym wygenerowaniu).
+Okna średnich kroczących (trzy SMA i jedna EMA) ustawiają zmienne `SMA_WINDOWS`
+i `EMA_WINDOW` w pliku `.env`; trafiają one do wykresów, karty faktów i raportu.
 
 Raport wymaga modelu językowego. Modele podaje się w zmiennej `LLM_MODELS` w kolejności
 preferencji, w zapisie `dostawca:model`, np.
