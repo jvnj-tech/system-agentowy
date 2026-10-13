@@ -40,7 +40,9 @@ Interfejs w przeglądarce:
 uv run streamlit run src/marketagents/app.py
 ```
 
-W panelu bocznym wybiera się spółkę z listy NASDAQ-100 lub wpisuje symbol. Aplikacja ma trzy
+W panelu bocznym wybiera się spółkę z listy NASDAQ-100 lub wpisuje symbol. Lista to skład
+indeksu z danego dnia pobierany z serwisu Nasdaq (odświeżany co 12 godzin); bez dostępu
+do serwisu używana jest kopia z pliku `data/nasdaq100.csv` z datą stanu w nagłówku. Aplikacja ma trzy
 zakładki: raport (ze statusem weryfikacji liczb i kartą faktów), interaktywne wykresy
 oraz pytania, w których asystent odpowiada na pytania o wygenerowany raport. Wygenerowany
 raport jest przechowywany w sesji, więc nie powstaje ponownie przy każdej interakcji.

@@ -1,5 +1,103 @@
-# Stan na: do uzupełnienia z https://www.nasdaq.com/market-activity/quotes/nasdaq-ndx-index
+# Stan na: 2026-10-13 (api.nasdaq.com, lista NASDAQ-100)
 ticker,name
 AAPL,Apple Inc.
+ABNB,"Airbnb, Inc."
+ADBE,Adobe Inc.
+ADI,"Analog Devices, Inc."
+ADP,"Automatic Data Processing, Inc."
+ADSK,"Autodesk, Inc."
+AEP,"American Electric Power Company, Inc."
+ALAB,"Astera Labs, Inc."
+ALNY,"Alnylam Pharmaceuticals, Inc."
+AMAT,"Applied Materials, Inc."
+AMD,"Advanced Micro Devices, Inc."
+AMGN,Amgen Inc.
+AMZN,"Amazon.com, Inc."
+APP,Applovin Corporation
+ARM,Arm Holdings plc
+ASML,ASML Holding N.V.
+AVGO,Broadcom Inc.
+AXON,"Axon Enterprise, Inc."
+BKNG,Booking Holdings Inc.
+BKR,Baker Hughes Company
+CCEP,Coca-Cola Europacific Partners plc
+CDNS,"Cadence Design Systems, Inc."
+CEG,Constellation Energy Corporation
+CMCSA,Comcast Corporation
+COST,Costco Wholesale Corporation
+CPRT,"Copart, Inc. (DE)"
+CRWD,"CrowdStrike Holdings, Inc."
+CRWV,"CoreWeave, Inc."
+CSCO,"Cisco Systems, Inc."
+CSX,CSX Corporation
+CTAS,Cintas Corporation
+DASH,"DoorDash, Inc."
+DDOG,"Datadog, Inc."
+DXCM,"DexCom, Inc."
+EXC,Exelon Corporation
+FANG,"Diamondback Energy, Inc."
+FAST,Fastenal Company
+FER,Ferrovial N.V.
+FTNT,"Fortinet, Inc."
+GEHC,GE HealthCare Technologies Inc.
+GILD,"Gilead Sciences, Inc."
+GOOG,Alphabet Inc.
+GOOGL,Alphabet Inc.
+HON,Honeywell International Inc.
+HONA,Honeywell Aerospace Inc.
+IDXX,"IDEXX Laboratories, Inc."
+INTC,Intel Corporation
+INTU,Intuit Inc.
+ISRG,"Intuitive Surgical, Inc."
+KDP,Keurig Dr Pepper Inc.
+KLAC,KLA Corporation
+LIN,Linde plc
+LITE,Lumentum Holdings Inc.
+LRCX,Lam Research Corporation
+MAR,Marriott International
+MCHP,Microchip Technology Incorporated
+MDLZ,"Mondelez International, Inc."
+MELI,"MercadoLibre, Inc."
+META,"Meta Platforms, Inc."
+MNST,Monster Beverage Corporation
+MPWR,"Monolithic Power Systems, Inc."
+MRNA,"Moderna, Inc."
+MRVL,"Marvell Technology, Inc."
 MSFT,Microsoft Corporation
+MSTR,Strategy Inc
+MU,"Micron Technology, Inc."
+NBIS,Nebius Group N.V.
+NFLX,"Netflix, Inc."
 NVDA,NVIDIA Corporation
+NXPI,NXP Semiconductors N.V.
+ODFL,"Old Dominion Freight Line, Inc."
+ORLY,"O'Reilly Automotive, Inc."
+PANW,"Palo Alto Networks, Inc."
+PAYX,"Paychex, Inc."
+PCAR,PACCAR Inc.
+PDD,PDD Holdings Inc.
+PEP,"PepsiCo, Inc."
+PLTR,Palantir Technologies Inc.
+PYPL,"PayPal Holdings, Inc."
+QCOM,QUALCOMM Incorporated
+REGN,"Regeneron Pharmaceuticals, Inc."
+RKLB,Rocket Lab Corporation
+ROP,"Roper Technologies, Inc."
+ROST,"Ross Stores, Inc."
+SBUX,Starbucks Corporation
+SHOP,Shopify Inc.
+SNDK,Sandisk Corporation
+SNPS,"Synopsys, Inc."
+SPCX,Space Exploration Technologies Corp.
+STX,Seagate Technology Holdings PLC
+TER,"Teradyne, Inc."
+TMUS,"T-Mobile US, Inc."
+TRI,Thomson Reuters Corporation
+TSLA,"Tesla, Inc."
+TTWO,"Take-Two Interactive Software, Inc."
+TXN,Texas Instruments Incorporated
+VRTX,Vertex Pharmaceuticals Incorporated
+WDAY,"Workday, Inc."
+WDC,Western Digital Corporation
+WMT,Walmart Inc.
+XEL,Xcel Energy Inc.

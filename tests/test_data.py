@@ -143,9 +143,35 @@ def test_normalize_observations_skips_missing_values():
     assert s.tolist() == [3.9, 4.0]
 
 
-def test_universe_file_loads():
-    tickers = [row["ticker"] for row in nasdaq100()]
-    assert {"AAPL", "MSFT", "NVDA"} <= set(tickers)
+def test_universe_snapshot_loads_with_date():
+    from marketagents.data.universe import snapshot
+
+    copy = snapshot()
+    tickers = [row["ticker"] for row in copy.companies]
+    assert len(tickers) >= 100 and {"AAPL", "MSFT", "NVDA"} <= set(tickers)
+    assert copy.as_of.startswith("20")
+    # Bez pamięci podręcznej (np. w testach) używana jest kopia z pliku.
+    assert nasdaq100() == copy.companies
+
+
+def test_universe_from_nasdaq_service_and_fallback(tmp_path):
+    from marketagents.data.universe import clean_name, current, parse_nasdaq
+
+    rows = [{"symbol": f"T{i}", "companyName": f"Firma {i} Inc. Common Stock"} for i in range(95)]
+    rows.append({"symbol": "asml", "companyName": "ASML Holding N.V. New York Registry Shares"})
+    payload = {"data": {"date": "Oct 13, 2026", "data": {"rows": rows}}}
+    index = parse_nasdaq(payload)
+    assert index.as_of == "2026-10-13" and len(index.companies) == 96
+    assert {"ticker": "ASML", "name": "ASML Holding N.V."} in index.companies
+    assert clean_name("Alphabet Inc. Class A Common Stock") == "Alphabet Inc."
+    # Niepełna lista (np. zmieniony format odpowiedzi) jest odrzucana na rzecz kopii z pliku.
+    with pytest.raises(ValueError):
+        parse_nasdaq({"data": {"data": {"rows": rows[:10]}}})
+    cache = DiskCache(tmp_path)
+    cache.json("universe", "nasdaq100", lambda: payload)
+    assert current(cache).source == "api.nasdaq.com"
+    broken = DiskCache(tmp_path / "pusty", offline=True)
+    assert current(broken).source == "plik nasdaq100.csv"
 
 
 def test_cache_refetches_after_max_age_and_falls_back_on_error(tmp_path):

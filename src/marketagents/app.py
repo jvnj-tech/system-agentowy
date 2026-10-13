@@ -24,11 +24,11 @@ from marketagents.charts import (
 )
 from marketagents.cli import STEP_NAMES, load_market_data
 from marketagents.config import load_settings
+from marketagents.data import universe
 from marketagents.data.cache import DiskCache
 from marketagents.data.fundamentals import get_fundamentals
 from marketagents.data.macro import get_macro
 from marketagents.data.prices import get_prices
-from marketagents.data.universe import nasdaq100
 from marketagents.evaluation import UsageCounter, append_record, report_record
 from marketagents.facts import FactSheet
 from marketagents.graph import build_graph, run_report
@@ -47,6 +47,12 @@ PERIODS = {"3 mies.": 63, "6 mies.": 126, "1 rok": 252, "2 lata": 504, "5 lat": 
 def resources():
     settings = load_settings()
     return settings, DiskCache(settings.cache_dir, offline=settings.offline)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def companies_now() -> universe.Universe:
+    # Skład NASDAQ-100 z bieżącego dnia (odświeżany raz na dobę, kopia w pliku).
+    return universe.current(resources()[1])
 
 
 @st.cache_resource
@@ -187,11 +193,12 @@ def ma_settings() -> MovingAverages | None:
 
 
 def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
-    companies = nasdaq100()
-    labels = [f"{c['ticker']} — {c['name']}" for c in companies]
+    index = companies_now()
+    labels = [f"{c['ticker']} — {c['name']}" for c in index.companies]
     with st.sidebar:
         st.header("Spółka")
         choice = st.selectbox("Spółka z NASDAQ-100", labels, index=0)
+        st.caption(f"Skład indeksu: {len(labels)} spółek, stan na {index.as_of} ({index.source}).")
         typed = st.text_input("lub symbol spoza listy", placeholder="np. INTC").strip().upper()
         ticker = typed or choice.split(" — ")[0]
         if not TICKER.match(ticker):
