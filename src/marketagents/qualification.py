@@ -46,6 +46,12 @@ def evaluate_state(state: dict, expected_analysts: int, elapsed: float) -> dict:
         "zaliczony": all(checks.values()),
         "kryteria": checks,
         "oznaczenia": marked,
+        # Co zostało oznaczone, żeby można było sprawdzić, czy to błąd modelu czy reguły.
+        "oznaczone": [
+            *state.get("unverified", []),
+            *state.get("flagged", []),
+            *state.get("uncited", []),
+        ],
         "wersje redakcji": state.get("attempts"),
         "czas_s": round(elapsed, 1),
     }
