@@ -159,9 +159,13 @@ def test_universe_from_nasdaq_service_and_fallback(tmp_path):
 
     rows = [{"symbol": f"T{i}", "companyName": f"Firma {i} Inc. Common Stock"} for i in range(95)]
     rows.append({"symbol": "asml", "companyName": "ASML Holding N.V. New York Registry Shares"})
+    rows.append({"symbol": "GOOGL", "companyName": "Alphabet Inc. Class A Common Stock"})
+    rows.append({"symbol": "GOOG", "companyName": "Alphabet Inc. Class C Capital Stock"})
     payload = {"data": {"date": "Oct 13, 2026", "data": {"rows": rows}}}
     index = parse_nasdaq(payload)
-    assert index.as_of == "2026-10-13" and len(index.companies) == 96
+    assert index.as_of == "2026-10-13" and len(index.companies) == 98
+    assert index.company_count == 97
+    assert {"ticker": "GOOG", "name": "Alphabet Inc. (klasa C)"} in index.companies
     assert {"ticker": "ASML", "name": "ASML Holding N.V."} in index.companies
     assert clean_name("Alphabet Inc. Class A Common Stock") == "Alphabet Inc."
     # Niepełna lista (np. zmieniony format odpowiedzi) jest odrzucana na rzecz kopii z pliku.

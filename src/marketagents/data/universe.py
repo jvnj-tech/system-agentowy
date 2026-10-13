@@ -30,11 +30,19 @@ SECURITY_SUFFIX = re.compile(
 )
 
 
+SHARE_CLASS = re.compile(r"\bClass ([A-C])\b")
+
+
 @dataclass(frozen=True)
 class Universe:
     companies: list[dict[str, str]]
     as_of: str
     source: str
+
+    @property
+    def company_count(self) -> int:
+        """Liczba spółek (bez powtórzeń przy kilku klasach akcji jednej spółki)."""
+        return len({c["name"].split(" (klasa")[0] for c in self.companies})
 
 
 def clean_name(name: str) -> str:
@@ -48,6 +56,14 @@ def parse_nasdaq(payload: dict) -> Universe:
         ({"ticker": r["symbol"].upper(), "name": clean_name(r["companyName"])} for r in rows),
         key=lambda c: c["ticker"],
     )
+    # Indeks liczy spółki, ale notuje akcje: spółka z dwiema klasami akcji (Alphabet: GOOGL
+    # i GOOG) występuje dwa razy, więc przy takich nazwach dopisywana jest klasa akcji.
+    raw = {r["symbol"].upper(): r["companyName"] for r in rows}
+    names = [c["name"] for c in companies]
+    for company in companies:
+        share_class = SHARE_CLASS.search(raw[company["ticker"]])
+        if names.count(company["name"]) > 1 and share_class:
+            company["name"] += f" (klasa {share_class.group(1)})"
     if len(companies) < 90:
         raise ValueError(f"Niepełna lista NASDAQ-100: {len(companies)} spółek")
     return Universe(companies, _iso_date(data.get("date", "")), "api.nasdaq.com")

@@ -212,7 +212,16 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
     with st.sidebar:
         st.header("Spółka")
         choice = st.selectbox("Spółka z NASDAQ-100", labels, index=0)
-        st.caption(f"Skład indeksu: {len(labels)} spółek, stan na {index.as_of} ({index.source}).")
+        shares = len(labels)
+        extra = (
+            f", {shares} akcji (spółki z kilkoma klasami akcji)"
+            if shares > index.company_count
+            else ""
+        )
+        st.caption(
+            f"Skład indeksu: {index.company_count} spółek{extra}, stan na {index.as_of} "
+            f"({index.source})."
+        )
         typed = st.text_input("lub symbol spoza listy", placeholder="np. INTC").strip().upper()
         ticker = typed or choice.split(" — ")[0]
         if not TICKER.match(ticker):
