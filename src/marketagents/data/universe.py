@@ -15,3 +15,8 @@ def nasdaq100() -> list[dict[str, str]]:
     text = resources.files("marketagents.data").joinpath("nasdaq100.csv").read_text("utf-8")
     lines = [line for line in text.splitlines() if line and not line.startswith("#")]
     return list(csv.DictReader(lines))
+
+
+def company_name(ticker: str) -> str | None:
+    """Nazwa spółki z listy NASDAQ-100 albo None dla symbolu spoza listy."""
+    return next((c["name"] for c in nasdaq100() if c["ticker"] == ticker.upper()), None)

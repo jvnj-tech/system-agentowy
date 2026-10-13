@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pandas as pd
 import requests
 
 from marketagents.data.cache import DiskCache
 
 URL = "https://api.stlouisfed.org/fred/series/observations"
+# Serie są miesięczne lub dzienne; raz na dobę wystarcza, by mieć ostatni odczyt.
+MAX_AGE = timedelta(days=1)
 
 # Identyfikatory serii FRED używane w raporcie.
 SERIES: dict[str, str] = {
@@ -43,7 +47,7 @@ def get_series(
         resp.raise_for_status()
         return resp.json()
 
-    return normalize_observations(cache.json("macro", f"{series_id}_{start}", fetch))
+    return normalize_observations(cache.json("macro", f"{series_id}_{start}", fetch, MAX_AGE))
 
 
 def get_macro(cache: DiskCache, api_key: str | None, start: str = "2015-01-01") -> pd.DataFrame:

@@ -11,10 +11,11 @@ import time
 
 from marketagents.config import load_settings
 from marketagents.data.cache import DiskCache
-from marketagents.data.fundamentals import get_fundamentals
+from marketagents.data.fundamentals import company_title, get_fundamentals
 from marketagents.data.macro import get_macro
-from marketagents.data.news import get_news
+from marketagents.data.news import get_news, relevant_news
 from marketagents.data.prices import get_prices
+from marketagents.data.universe import company_name
 from marketagents.facts import fundamental_facts, macro_facts, technical_facts
 from marketagents.indicators import compute_all
 
@@ -82,7 +83,8 @@ def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
     try:
         news = get_news(cache, ticker, settings.finnhub_api_key)
         news["published"] = news["published"].dt.strftime("%Y-%m-%d %H:%M")
-        data.news = news.to_dict("records")
+        name = company_name(ticker) or company_title(cache, ticker, settings.sec_user_agent)
+        data.news = relevant_news(news.to_dict("records"), ticker, name)
     except Exception as exc:  # noqa: BLE001
         print(f"Pomijam newsy: {exc}")
     return data

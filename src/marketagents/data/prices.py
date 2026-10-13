@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pandas as pd
 
 from marketagents.data.cache import DiskCache
@@ -24,6 +26,10 @@ def normalize_ohlcv(raw: pd.DataFrame) -> pd.DataFrame:
     return df.sort_index()
 
 
+# Notowania z ostatniej sesji są dostępne po zamknięciu rynku, więc wystarczy raz na kilka godzin.
+MAX_AGE = timedelta(hours=6)
+
+
 def _download(ticker: str, start: str, end: str | None) -> pd.DataFrame:
     import yfinance as yf
 
@@ -40,4 +46,8 @@ def get_prices(
 ) -> pd.DataFrame:
     """Ceny skorygowane o splity i dywidendy (auto_adjust)."""
     key = f"{ticker}_{start}_{end or 'latest'}"
-    return cache.frame("prices", key, lambda: normalize_ohlcv(_download(ticker, start, end)))
+    # Zakres z datą końcową się nie zmienia; „latest” jest pobierany ponownie po MAX_AGE.
+    max_age = None if end else MAX_AGE
+    return cache.frame(
+        "prices", key, lambda: normalize_ohlcv(_download(ticker, start, end)), max_age
+    )

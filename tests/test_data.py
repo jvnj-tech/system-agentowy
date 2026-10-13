@@ -146,3 +146,73 @@ def test_normalize_observations_skips_missing_values():
 def test_universe_file_loads():
     tickers = [row["ticker"] for row in nasdaq100()]
     assert {"AAPL", "MSFT", "NVDA"} <= set(tickers)
+
+
+def test_cache_refetches_after_max_age_and_falls_back_on_error(tmp_path):
+    import os
+    from datetime import timedelta
+
+    cache = DiskCache(tmp_path)
+    cache.json("src", "k", lambda: {"v": 1}, timedelta(hours=1))
+    path = tmp_path / "src" / "k.json"
+    old = path.stat().st_mtime - 2 * 3600
+    os.utime(path, (old, old))
+    assert cache.json("src", "k", lambda: {"v": 2}, timedelta(hours=1)) == {"v": 2}
+    os.utime(path, (old, old))
+
+    def broken():
+        raise ConnectionError("brak sieci")
+
+    # Nieudane odświeżenie: lepiej starsze dane niż żadne.
+    assert cache.json("src", "k", broken, timedelta(hours=1)) == {"v": 2}
+    # Bez max_age plik jest używany bez względu na wiek.
+    assert cache.json("src", "k", broken) == {"v": 2}
+
+
+def test_annual_facts_fills_missing_years_from_next_concept():
+    # Spółka zmieniła pojęcie przychodów: nowsze lata są tylko w drugim pojęciu.
+    payload = {
+        "facts": {
+            "us-gaap": {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {"USD": [_fact("2021-01-01", "2021-12-31", 90.0, "2022-02-01")]}
+                },
+                "Revenues": {
+                    "units": {"USD": [_fact("2023-01-01", "2023-12-31", 120.0, "2024-02-01")]}
+                },
+                "CostOfRevenue": {
+                    "units": {"USD": [_fact("2023-01-01", "2023-12-31", 70.0, "2024-02-01")]}
+                },
+                "LiabilitiesAndStockholdersEquity": {
+                    "units": {"USD": [_instant("2023-12-31", 500.0)]}
+                },
+                "StockholdersEquity": {"units": {"USD": [_instant("2023-12-31", 200.0)]}},
+            }
+        }
+    }
+    df = annual_facts(payload)
+    assert df["revenue"].tolist() == [90.0, 120.0]
+    last = df.loc[pd.Timestamp("2023-12-31")]
+    # Brak pojęć GrossProfit i Liabilities: wartości wyliczone z pozostałych pozycji.
+    assert last["gross_profit"] == 50.0
+    assert last["total_liabilities"] == 300.0
+
+
+def _instant(end: str, val: float) -> dict:
+    return {"end": end, "val": val, "filed": "2024-02-01", "form": "10-K", "fp": "FY"}
+
+
+def test_news_filter_keeps_only_items_about_the_company():
+    from marketagents.data.news import company_aliases, relevant_news
+
+    items = [
+        {"headline": "Starbucks denies takeover plan", "summary": ""},
+        {"headline": "Chipotle falls", "summary": "after SBUX statement"},
+        {"headline": "Consumer stocks mixed", "summary": "Sector update"},
+        {"headline": "Dutch Bros could rise", "summary": "coffee chains"},
+    ]
+    assert company_aliases("SBUX", "STARBUCKS CORP") == ["SBUX", "STARBUCKS"]
+    kept = relevant_news(items, "SBUX", "STARBUCKS CORP")
+    assert [i["headline"] for i in kept] == ["Starbucks denies takeover plan", "Chipotle falls"]
+    # Symbol rozpoznawany tylko jako osobne słowo pisane wielkimi literami.
+    assert not relevant_news([{"headline": "Pep talk", "summary": ""}], "PEP", None)
