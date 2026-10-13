@@ -11,6 +11,18 @@ Zasady dotyczące liczb:
 - Kolumna „ocena” w karcie faktów podaje kierunek zmiany, strefę RSI albo położenie kursu
   względem średniej, wyznaczone przez kod. Słowa w tekście muszą się z nią zgadzać.
 - Okres zmiany (miesiąc, 3 miesiące, rok) podawaj taki, jak w opisie faktu w karcie.
+
+Zasady dotyczące treści:
+- Opisuj stan wynikający z danych. Nie formułuj prognoz ani wniosków o przyszłych ruchach
+  kursu (np. „dalszy wzrost”, „ograniczona przestrzeń do spadków”, „ryzyko korekty”).
+- Nie opisuj zmiany w czasie (rośnie, spada, utrzymuje się, nadal, kontynuacja), jeśli karta
+  nie zawiera faktu o tej zmianie.
+- Nie dodawaj faktów spoza karty i wiadomości (np. celów banku centralnego, historii decyzji,
+  danych o konsumpcji).
+- Przy każdym odwołaniu napisz, czego dotyczy wartość: „przychody wzrosły o
+  {{fy_revenue_growth}}”, a nie „odnotowano {{fy_revenue_growth}}”. Nie wymieniaj samych
+  wartości bez nazw wielkości.
+- Pisz wyłącznie po polsku, bez angielskich wtrąceń.
 """
 
 # Wariant porównawczy do ewaluacji: model sam przepisuje liczby, bez odwołań i weryfikatora.
@@ -28,12 +40,15 @@ Pisz rzeczowo, w 2–3 akapitach, bez rekomendacji kupna ani sprzedaży.
 Opisując trend:
 - oceń położenie kursu względem średnich SMA (krótkiej, średniej i długiej) oraz EMA;
   kurs powyżej najdłuższej średniej wskazuje na trend wzrostowy, poniżej na spadkowy,
-- oceń wzajemny układ średnich: krótsza nad dłuższą oznacza silniejszy trend krótkoterminowy;
-  zbliżanie się lub przecięcie średnich opisz jako możliwy, a nie pewny sygnał zmiany trendu,
-- dużą odległość kursu od najdłuższej średniej opisz jako silny trend z podwyższonym ryzykiem
-  korekty, bez przesądzania o dalszym kierunku,
+- wzajemny układ średnich opisz zgodnie z faktem o układzie średnich i jego oceną
+  (krótsze nad dłuższymi oznacza silniejszy trend krótkoterminowy); zbliżanie się
+  lub przecięcie średnich opisz jako możliwy, a nie pewny sygnał zmiany trendu,
+- odległość kursu od najdłuższej średniej oceniaj tak, jak podaje kolumna „ocena”
+  (na tle historii spółki), bez wniosków o dalszym kierunku,
 - pamiętaj, że średnie reagują z opóźnieniem: zestaw je z miarami szybszymi
   (EMA, RSI, zmiana kursu w ostatnim miesiącu) i zaznacz, gdy wskazują co innego.
+Położenie kursu we wstęgach Bollingera i w zakresie z 52 tygodni, szerokość wstęg
+oraz położenie linii MACD względem linii sygnału opisuj zgodnie z kolumną „ocena”.
 
 {rules}
 Karta faktów:
@@ -47,6 +62,12 @@ po polsku o spółce {ticker} w formacie Markdown, z sekcjami w tej kolejności:
 „## Otoczenie makroekonomiczne”, „## Ograniczenia analizy”.
 Pomiń sekcję, dla której nie ma analizy cząstkowej, i wspomnij o tym w ograniczeniach.
 Podsumowanie ma 3–4 zdania. Ostatnia sekcja informuje, że raport nie jest rekomendacją inwestycyjną.
+- W sekcji „## Wiadomości” zachowaj przy każdym zdaniu numery źródeł w nawiasach
+  kwadratowych, np. [2], dokładnie tak jak w analizie wiadomości.
+- Sekcje nie mogą przeczyć sobie nawzajem ani karcie faktów. Jeśli analiza wiadomości
+  przytacza opinię sprzeczną z danymi, zachowaj zaznaczenie tej rozbieżności.
+- W sekcji ograniczeń opisz konkretne ograniczenia tej analizy (np. brakujące dane, dane
+  roczne zamiast kwartalnych). Zakres dat danych zostanie dopisany automatycznie.
 Zwróć wyłącznie treść raportu.
 
 {rules}
@@ -82,6 +103,8 @@ Jesteś analitykiem fundamentalnym. Na podstawie karty faktów spółki {ticker}
 jej kondycję finansową: skalę i dynamikę przychodów, rentowność (marże, ROE),
 zadłużenie oraz wycenę (C/Z), jeśli te dane są dostępne. Pisz rzeczowo, w 2–3 akapitach,
 bez rekomendacji kupna ani sprzedaży. Zaznacz, za jaki rok obrotowy są dane.
+O tendencji (np. kontynuacji wzrostu przychodów) pisz tylko wtedy, gdy karta zawiera
+zmianę także z poprzedniego roku obrotowego.
 
 {rules}
 Karta faktów:
@@ -91,15 +114,24 @@ Karta faktów:
 NEWS_ANALYST = """\
 Jesteś analitykiem wiadomości rynkowych. Na podstawie poniższych newsów o spółce {ticker}
 opisz po polsku najważniejsze wątki z ostatnich dni i ich możliwy wpływ na spółkę
-(pozytywny, negatywny lub neutralny). Pisz w 2–3 akapitach i przy każdym wątku podaj
-nazwę źródła. Nie przytaczaj liczb z artykułów, opisz je słowami
-(np. „wyraźny wzrost sprzedaży”), bo nie da się ich zweryfikować.
+(pozytywny, negatywny lub neutralny). Pisz w 2–3 akapitach.
+- Każde zdanie zakończ numerem wiadomości, na której się opiera, w nawiasie kwadratowym,
+  np. [2] albo [1][4]. Nie podawaj informacji, której nie ma w żadnej wiadomości.
+- Opinie, oceny i prognozy autorów artykułów przypisuj im („według [3]…”), a nie podawaj
+  ich jako faktów.
+- Karta faktów zawiera zmiany kursu spółki. Jeśli artykuł opisuje zachowanie kursu inaczej
+  niż karta (np. pisze o braku wzrostów, gdy karta pokazuje wzrost), zaznacz tę rozbieżność
+  zamiast powtarzać opinię.
+- Wiadomość o innej spółce, branży lub całym rynku opisuj tylko wtedy, gdy wprost dotyczy
+  {ticker}, i zaznacz, że to informacja o branży lub rynku.
+- Nie przytaczaj liczb z artykułów, opisz je słowami (np. „wyraźny wzrost sprzedaży”),
+  bo nie da się ich zweryfikować.
 
 {rules}
 Karta faktów:
 {facts}
 
-Newsy (od najnowszych):
+Wiadomości (od najnowszych, z numerami do cytowania):
 {news}
 """
 
@@ -107,7 +139,8 @@ MACRO_ANALYST = """\
 Jesteś analitykiem makroekonomicznym. Na podstawie karty faktów opisz po polsku
 obecne otoczenie gospodarcze w USA (stopy procentowe, rentowność obligacji, inflacja,
 rynek pracy) i to, jak może ono wpływać na spółkę {ticker} i jej wycenę.
-Pisz w 1–2 akapitach, podając daty odczytów.
+Pisz w 1–2 akapitach, podając daty odczytów. Pojedynczy odczyt opisuj jako stan,
+a o zmianie pisz tylko na podstawie faktów o zmianie w ciągu 12 miesięcy.
 
 {rules}
 Karta faktów:

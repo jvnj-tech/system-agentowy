@@ -7,6 +7,9 @@ dane -> fakty --+--> analityk fundamentalny --+-> redaktor -> weryfikator --(zgo
 
 Analitycy działają równolegle; analityk, dla którego zabrakło danych, jest pomijany.
 Każda analiza jest od razu weryfikowana i w razie błędów raz poprawiana przez analityka.
+Analityk wiadomości dostaje ponumerowaną listę newsów o spółce i zmiany kursu z karty,
+a każde zdanie o wiadomościach musi wskazywać numer źródła. Opis zakresu danych
+w sekcji ograniczeń dopisuje kod.
 """
 
 from __future__ import annotations
@@ -20,10 +23,11 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langgraph.graph import END, START, StateGraph
 
 from marketagents import prompts
+from marketagents.coverage import coverage_note
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet
 from marketagents.interpretation import mark_sentences, prompt_table
 from marketagents.llm import message_text
-from marketagents.verifier import mark_unverified, render, verify
+from marketagents.verifier import SOURCE_MARKER, cite, mark_unverified, render, verify
 
 MAX_FIXES = 2
 # Analiza cząstkowa jest sprawdzana od razu i może zostać raz poprawiona przez analityka.
@@ -31,6 +35,8 @@ ANALYST_FIXES = 1
 MAX_NEWS = 15
 # Ostatnia sekcja raportu; jej brak oznacza, że model urwał odpowiedź.
 LAST_SECTION = "## Ograniczenia analizy"
+# Fakty, które dostaje analityk wiadomości, by porównać opinie z artykułów z danymi.
+NEWS_CONTEXT = ("change_1m", "change_3m", "change_1y")
 
 
 @dataclass
@@ -51,6 +57,7 @@ class ReportState(TypedDict, total=False):
     issue_counts: Annotated[list[int], operator.add]
     unverified: list[str]
     flagged: list[str]
+    uncited: list[str]
     attempts: int
     report: str
     report_html: str
@@ -58,25 +65,47 @@ class ReportState(TypedDict, total=False):
 
 
 def _format_news(news: list[dict]) -> str:
-    return "\n".join(
-        f"- [{n['published'][:10]}] {n['source']}: {n['headline']}. {n.get('summary', '')}".strip()
-        for n in news[:MAX_NEWS]
-    )
+    lines = []
+    for i, n in enumerate(news[:MAX_NEWS], start=1):
+        text = f"[{i}] {n['published'][:10]}, {n['source']}: {n['headline']}."
+        lines.append(f"{text} {n.get('summary') or ''}".strip())
+    return "\n".join(lines)
+
+
+# Brak treści w odpowiedzi modelu (zdarza się przy długich poleceniach, gdy model zużyje
+# odpowiedź na rozumowanie) jest ponawiany tyle razy, zanim zostanie uznany za brak analizy.
+EMPTY_RETRIES = 1
+EMPTY_REPORT = (
+    "Model językowy nie zwrócił treści raportu. Spróbuj wygenerować raport ponownie "
+    "lub wybierz innego dostawcę modelu."
+)
 
 
 def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
+    def ask(prompt: str) -> str:
+        text = ""
+        for _ in range(1 + EMPTY_RETRIES):
+            text = message_text(llm.invoke(prompt)).strip()
+            if text:
+                break
+        return text
+
     def load(state: ReportState) -> ReportState:
         data = load_data(state["ticker"])
         return {
             "facts": FactSheet(data.facts).to_records(),
-            "news": data.news,
+            "news": data.news[:MAX_NEWS],
             "attempts": 0,
         }
 
     def analyst(name: str, template: str, group: str, needs_news: bool = False):
         def node(state: ReportState) -> ReportState:
-            facts = FactSheet.from_records(state["facts"]).group(group)
+            sheet = FactSheet.from_records(state["facts"])
+            facts = sheet.group(group)
             has_data = any(f.group == group for f in facts)
+            if needs_news:
+                facts = FactSheet([*facts, *(sheet[i] for i in NEWS_CONTEXT if i in sheet)])
+            news_count = len(state.get("news", [])) if needs_news else None
             if needs_news and not state.get("news"):
                 return {}
             if not needs_news and not has_data:
@@ -87,16 +116,20 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
                 facts=prompt_table(facts),
                 news=_format_news(state.get("news", [])),
             )
-            text = message_text(llm.invoke(prompt))
+            text = ask(prompt)
+            if not text:
+                return {}
             fixes = 0
             while fixes < ANALYST_FIXES:
-                result = verify(text, facts)
+                result = verify(text, facts, news_count=news_count, whole_text_is_news=True)
                 if result.ok:
                     break
                 issues = "\n".join(f"- {i}" for i in result.issues())
                 fix = prompts.ANALYST_FIX.format(issues=issues, draft=text)
-                text = message_text(llm.invoke(prompt + "\n\n" + fix))
+                fixed = ask(prompt + "\n\n" + fix)
                 fixes += 1
+                if fixed:
+                    text = fixed
             return {"analyses": {name: text}, "analyst_fixes": fixes}
 
         return node
@@ -114,11 +147,13 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             prompt += "\n\n" + prompts.EDITOR_FIX.format(
                 issues="\n".join(f"- {i}" for i in state["issues"]), draft=state["draft"]
             )
-        return {"draft": message_text(llm.invoke(prompt))}
+        return {"draft": ask(prompt)}
 
     def verifier(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
-        result = verify(state["draft"], facts)
+        has_news = bool(state.get("analyses", {}).get("wiadomości"))
+        news_count = len(state.get("news", [])) if has_news else None
+        result = verify(state["draft"], facts, news_count=news_count)
         issues = result.issues()
         if LAST_SECTION not in state["draft"]:
             issues.append(f"Raport jest niekompletny: brak sekcji „{LAST_SECTION}”")
@@ -127,6 +162,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             "issue_counts": [len(issues)],
             "unverified": result.to_mark,
             "flagged": result.flagged_sentences,
+            "uncited": result.uncited,
             "attempts": state.get("attempts", 0) + 1,
             "report": result.rendered,
             "verified": not issues,
@@ -134,12 +170,21 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
 
     def finalize(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
-        if state["verified"]:
-            return {"report_html": render(state["draft"], facts, html=True)}
-        draft = mark_sentences(state["draft"], state.get("flagged", []))
+        news = state.get("news", [])
+        draft = state["draft"] or EMPTY_REPORT
+        if not state["verified"]:
+            draft = mark_sentences(draft, state.get("flagged", []))
+            draft = mark_sentences(draft, state.get("uncited", []), SOURCE_MARKER)
+        # Zakres danych dopisuje kod po weryfikacji, więc jego daty nie są sprawdzane
+        # jak tekst modelu.
+        note = "\n\n" + coverage_note(facts, news) + "\n"
+        plain, html = render(draft, facts), render(draft, facts, html=True)
+        if not state["verified"]:
+            plain = mark_unverified(plain, state["unverified"])
+            html = mark_unverified(html, state["unverified"])
         return {
-            "report": mark_unverified(render(draft, facts), state["unverified"]),
-            "report_html": mark_unverified(render(draft, facts, html=True), state["unverified"]),
+            "report": cite(plain, news).rstrip() + note,
+            "report_html": cite(html, news).rstrip() + note,
         }
 
     def after_verification(state: ReportState) -> str:

@@ -128,3 +128,25 @@ def test_years_must_match_dates_in_fact_sheet():
     assert result.unverified_numbers == []
     assert "Rok 2021" in result.issues()[0]
     assert mark_unverified(result.rendered, result.to_mark).startswith("W 2021 [niezweryfikowane]")
+
+
+def test_news_sentences_must_cite_existing_items():
+    from marketagents.verifier import cite
+
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    report = (
+        "## Wiadomości\nSpółka zaprzeczyła plotkom o przejęciu konkurenta [2]. "
+        "Analitycy uważają, że akcje są tanie. Według [7] popyt słabnie wyraźnie.\n"
+        "## Ograniczenia analizy\nDane są niepełne i bez numerów źródeł."
+    )
+    result = verify(report, facts, news_count=3)
+    assert result.uncited == ["Analitycy uważają, że akcje są tanie."]
+    assert result.bad_citations == ["7"]
+    assert not result.ok and not result.unverified_numbers
+    # Bez listy newsów (news_count=None) numery nie są sprawdzane.
+    assert verify(report, facts).uncited == []
+
+    news = [{"source": "Yahoo", "published": "2026-10-12 10:00", "url": "https://x.example/a"}]
+    assert cite("Zarząd zaprzeczył [1].", news) == (
+        "Zarząd zaprzeczył [Yahoo, 2026-10-12](https://x.example/a)."
+    )

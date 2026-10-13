@@ -131,3 +131,52 @@ def test_technical_facts_follow_custom_windows(close):
     assert facts["dist_sma_150"].label == "odległość kursu od SMA(150)"
     # Nazwy wskaźników z ustawionymi okresami nie są traktowane jak zmyślone liczby.
     assert verify("Kurs jest powyżej SMA(150) i SMA(30), EMA(12) rośnie.", facts).ok
+
+
+def test_position_facts_and_moving_average_order(close):
+    prices = pd.DataFrame({"close": close})
+    facts = FactSheet(technical_facts("TEST", prices, compute_all(prices)))
+    for fid in ("bb_position", "range_52w_position", "ma_order", "dist_sma_200"):
+        assert fid in facts and facts[fid].assessment, fid
+    assert 0 <= facts["range_52w_position"].value <= 100
+
+
+def test_zone_and_order_words():
+    from marketagents.facts import distance_assessment, ma_order, zone
+
+    assert zone(10, "dolnej wstęgi", "górnej wstęgi") == "przy dolnej wstęgi"
+    assert zone(63, "a", "b") == "w górnej części przedziału"
+    assert zone(105, "a", "b") == "powyżej b"
+    assert ma_order({20: 3.0, 50: 2.0, 200: 1.0})[1] == "krótsze średnie nad dłuższymi"
+    text, assessment = ma_order({20: 94.7, 50: 100.9, 200: 98.2})
+    assert text == "SMA(50) > SMA(200) > SMA(20)" and assessment.startswith("układ mieszany")
+    assert distance_assessment(-6.0, 50.0).endswith("odległość typowa na tle ostatnich 3 lat")
+    assert "nietypowo duża" in distance_assessment(25.0, 95.0)
+
+
+def test_roe_skipped_for_negative_equity_and_growth_needs_adjacent_year():
+    annual = pd.DataFrame(
+        {
+            "revenue": [80e9, 100e9, 110e9],
+            "net_income": [5e9, 6e9, 7e9],
+            "stockholders_equity": [1e9, -2e9, -3e9],
+        },
+        index=pd.to_datetime(["2022-12-31", "2023-12-31", "2024-12-31"]),
+    )
+    facts = FactSheet(fundamental_facts(annual))
+    assert "fy_roe" not in facts and facts["fy_equity_negative"].value == "ujemny"
+    assert round(facts["fy_revenue_growth"].value, 1) == 10.0
+    assert round(facts["fy_revenue_growth_prev"].value, 1) == 25.0
+    assert round(facts["fy_net_income_growth"].value, 1) == 16.7
+    # Luka w danych: brak roku 2023, więc zmiany „rok do roku” nie da się policzyć.
+    gap = FactSheet(fundamental_facts(annual.drop(pd.Timestamp("2023-12-31"))))
+    assert "fy_revenue_growth" not in gap
+
+
+def test_macro_change_over_12_months():
+    index = pd.date_range("2024-01-01", periods=25, freq="MS")
+    macro = pd.DataFrame({"fed_funds_rate": [5.0] * 13 + [4.5] * 12}, index=index)
+    facts = FactSheet(macro_facts(macro))
+    change = facts["macro_fed_rate_change_12m"]
+    assert change.value == -0.5 and change.unit == "p.p."
+    assert change.formatted() == "-0,50 p.p."

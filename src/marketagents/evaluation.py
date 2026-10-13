@@ -40,6 +40,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import LLMResult
 
 from marketagents import prompts
+from marketagents.coverage import NOTE_PREFIX
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet, format_number
 from marketagents.graph import MarketData, _format_news
 from marketagents.interpretation import (
@@ -115,6 +116,9 @@ class UsageCounter(BaseCallbackHandler):
         return self.input_tokens, self.output_tokens
 
 
+MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\([^)]*\)")
+
+
 def unsupported_numbers(text: str, facts: FactSheet) -> list[str]:
     """Liczby w gotowym tekście, których nie ma w karcie faktów (porównanie z dowolnym faktem).
 
@@ -123,6 +127,8 @@ def unsupported_numbers(text: str, facts: FactSheet) -> list[str]:
     """
     allowed = DEFAULT_ALLOWED | indicator_periods(facts) | label_numbers(facts)
     years = fact_years(facts)
+    # Opis zakresu danych dopisuje kod, a odnośniki do wiadomości zawierają daty i adresy.
+    text = MARKDOWN_LINK.sub(" ", text.split(NOTE_PREFIX)[0])
     stripped = DMY_DATE.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
     stripped = LIST_MARKER.sub(" ", INDEX_NAME.sub(" ", stripped))
     out = [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
@@ -368,7 +374,9 @@ def inject_errors(draft: str, facts: FactSheet, rng: random.Random) -> list[Muta
             if word.lower() not in FLIP:
                 continue
             fact_id = _described_fact(FLIP[word.lower()][1], sentence, ids)
-            if fact_id and word.lower() in AGREES.get(label(fact_id, facts) or "", set()):
+            # Ocena odległości od średniej zawiera też wielkość („kurs powyżej średniej, …”).
+            assessment = (label(fact_id, facts) or "").split(",")[0] if fact_id else ""
+            if fact_id and word.lower() in AGREES.get(assessment, set()):
                 words.append((start + w.start(), start + w.end(), _flip(word)))
         found = periods_in(PLACEHOLDER.sub(" ", sentence))
         changes = [r for r in ids if r in PERIODS]

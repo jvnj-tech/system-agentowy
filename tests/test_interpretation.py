@@ -93,3 +93,90 @@ def test_labels_in_prompt_table():
     table = prompt_table(FACTS)
     assert "| {{change_1m}} | zmiana 1M | -3,2% | spadek |" in table
     assert "| {{close}} | kurs | 100,00 USD |  |" in table
+
+
+POSITIONS = FactSheet(
+    [
+        Fact("close", "kurs", 332.9, "USD"),
+        Fact("bb_upper", "górna wstęga", 346.2, "USD"),
+        Fact("bb_lower", "dolna wstęga", 317.5, "USD"),
+        Fact("bb_position", "wstęgi", 53.6, "%", 0, assessment="w środku przedziału"),
+        Fact("high_52w", "maks.", 140.9, "USD"),
+        Fact("low_52w", "min.", 33.6, "USD"),
+        Fact("range_52w_position", "zakres", 63.1, "%", 0, assessment="w górnej części"),
+        Fact("ma_order", "układ", "SMA(50) > SMA(200) > SMA(20)", assessment="układ mieszany"),
+        Fact("macd_hist", "histogram", 0.14, "", 2),
+        Fact("macd", "MACD", -2.66, "", 2),
+        Fact("macd_signal", "sygnał", -2.80, "", 2),
+        Fact(
+            "dist_sma_200",
+            "odległość",
+            -6.0,
+            "%",
+            1,
+            assessment="kurs poniżej średniej, odległość typowa na tle ostatnich 3 lat",
+        ),
+        Fact("bb_width", "szerokość", 8.0, "%", 1, assessment="typowa szerokość wstęg"),
+        Fact("macro_inflation", "inflacja", 3.7, "%", 1),
+        Fact("macro_inflation_change_12m", "zmiana inflacji", 0.8, "p.p.", 2),
+        Fact("fy_net_income", "zysk netto", 112.0, "mld USD", 1),
+        Fact("fy_revenue", "przychody", 416.2, "mld USD", 1),
+        Fact("fy_revenue_growth", "zmiana przychodów", 6.4, "%", 1),
+        Fact("fy_revenue_growth_prev", "zmiana rok wcześniej", 2.0, "%", 1),
+    ]
+)
+
+
+def found(text: str) -> list[str]:
+    return [i.message for i in check_interpretations(text, POSITIONS)]
+
+
+def test_position_within_bands_and_52_week_range():
+    assert found("Kurs {{close}} znajduje się bliżej dolnej wstęgi Bollingera.")
+    assert found("Cena jest w dolnej części zakresu z 52 tygodni.")
+    # w jednym zdaniu dwa człony o różnych przedziałach: oceniany jest każdy osobno
+    assert found(
+        "Kurs jest nieco powyżej dolnej wstęgi {{bb_lower}} i daleko od górnej {{bb_upper}}, "
+        "handlując w dolnej części 52-tygodniowego zakresu."
+    )
+    assert not found("Kurs oscyluje w środku wstęg Bollingera(20, 2).")
+    assert not found("Kurs jest w górnej części zakresu z 52 tygodni.")
+    # wymienienie obu granic bez oceny położenia
+    assert not found("Górna wstęga {{bb_upper}} i dolna wstęga {{bb_lower}} wyznaczają zakres.")
+    assert not found("Najniższy kurs z 52 tygodni wyniósł {{low_52w}}, a najwyższy {{high_52w}}.")
+
+
+def test_moving_average_order_and_macd():
+    assert found("Krótsza średnia znajduje się poniżej dłuższej, co potwierdza słabość.")
+    assert found("Układ, w którym krótsze średnie leżą nad dłuższymi, wskazuje na siłę.")
+    assert not found("Krótsza średnia nie leży nad dłuższą.")
+    assert found("Linia MACD {{macd}} jest poniżej linii sygnału {{macd_signal}}.")
+    assert not found("Linia MACD {{macd}} jest nieco wyższa od linii sygnału {{macd_signal}}.")
+
+
+def test_distance_and_band_width_follow_assessment():
+    assert found("Odległość od SMA(200) {{dist_sma_200}} oznacza wyraźne oddalenie.")
+    assert not found("Kurs jest poniżej SMA(200), odległość wynosi {{dist_sma_200}}.")
+    assert found("Wstęgi Bollingera są wąskie, co oznacza małą zmienność.")
+    assert not found("Kurs znajduje się między wstęgami Bollingera.")
+
+
+def test_change_claims_need_a_change_fact():
+    issues = found("Inflacja utrzymuje się na poziomie {{macro_inflation}}.")
+    assert issues and "{{macro_inflation_change_12m}}" in issues[0]
+    assert found("Fundamenty są solidne, z rosnącym zyskiem netto {{fy_net_income}}.")
+    assert found("Spółka odnotowała solidny wzrost przychodów {{fy_revenue}}.")
+    # zmiana podana faktem o zmianie albo stan bez opisu zmiany
+    assert not found(
+        "Inflacja wynosi {{macro_inflation}}, o {{macro_inflation_change_12m}} więcej niż rok temu."
+    )
+    assert not found("Przychody wyniosły {{fy_revenue}} przy wzroście o {{fy_revenue_growth}}.")
+    assert not found("Inflacja CPI wynosi {{macro_inflation}}.")
+
+
+def test_continuation_needs_previous_year():
+    assert found("Przychody wzrosły o {{fy_revenue_growth}}, co oznacza kontynuację wzrostu.")
+    assert not found(
+        "Przychody wzrosły o {{fy_revenue_growth}} po {{fy_revenue_growth_prev}} rok wcześniej, "
+        "co oznacza kontynuację wzrostu."
+    )

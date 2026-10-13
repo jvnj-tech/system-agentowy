@@ -202,16 +202,17 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
         )
     if result["verified"]:
         st.success(
-            "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, "
-            "a ich opis jest z nimi zgodny "
+            "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, ich opis zgadza się "
+            "z ocenami wyznaczonymi przez kod, a zdania o wiadomościach wskazują źródła "
             f"(wersje redakcji: {result['attempts']}, poprawki analityków: "
-            f"{result.get('analyst_fixes', 0)}, czas: {result['elapsed']:.0f} s)."
+            f"{result.get('analyst_fixes', 0)}, czas: {result['elapsed']:.0f} s). "
+            "Twierdzeń bez liczb weryfikator nie sprawdza."
         )
     else:
         st.warning(
-            "Części liczb lub ich opisów nie udało się zweryfikować; są oznaczone w tekście "
-            "jako [niezweryfikowane] lub [niezweryfikowana interpretacja] "
-            f"(wersje redakcji: {result['attempts']})."
+            "Części liczb, ich opisów lub źródeł nie udało się zweryfikować; są oznaczone "
+            "w tekście jako [niezweryfikowane], [niezweryfikowana interpretacja] "
+            f"lub [brak źródła] (wersje redakcji: {result['attempts']})."
         )
     input_tokens, output_tokens = result.get("tokens", (None, None))
     if input_tokens is not None:

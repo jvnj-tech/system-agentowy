@@ -68,8 +68,11 @@ z limitami zapytań; jeden raport to zwykle 6–8 zapytań, a każde pytanie do 
 Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa pracy: pomijana jest tylko
 odpowiednia część analizy.
 
-Pobrane dane trafiają do katalogu `.cache/`. Po ustawieniu `MARKETAGENTS_OFFLINE=1`
-system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać testy na tym samym zbiorze.
+Pobrane dane trafiają do katalogu `.cache/`. Notowania i wiadomości są pobierane ponownie
+po 6 godzinach, dane makro po dobie, a sprawozdania z SEC po tygodniu; gdy pobranie się nie
+uda, używane są zapisane dane, a ich data trafia do raportu. Po ustawieniu
+`MARKETAGENTS_OFFLINE=1` system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać
+testy na tym samym zbiorze.
 
 ## Jak powstaje raport
 
@@ -96,15 +99,28 @@ przy składaniu raportu. Weryfikator sprawdza, czy:
 - opis jest zgodny z liczbą: kierunek zmiany (wzrost/spadek), strefy RSI (wykupienie powyżej
   70, wyprzedanie poniżej 30) oraz położenie kursu względem średniej kroczącej,
 - okres zmiany jest zgodny z kartą: zmiana z ostatniego miesiąca nie może być opisana
-  jako zmiana roczna.
+  jako zmiana roczna,
+- opisy położenia i układu zgadzają się z ocenami kodu: położenie kursu we wstęgach
+  Bollingera i w zakresie z 52 tygodni, układ średnich, linia MACD względem linii sygnału,
+  szerokość wstęg oraz to, czy odległość od długiej średniej jest duża na tle 3 lat,
+- zmiana w czasie („rośnie”, „utrzymuje się”, „kontynuacja”) jest opisana tylko przy
+  wielkości, dla której karta zawiera fakt o zmianie (np. zmianę stopy Fed w ciągu 12 miesięcy),
+- każde zdanie w sekcji wiadomości wskazuje numer wiadomości z listy, np. [2]; w gotowym
+  raporcie numer zamienia się w odnośnik do artykułu.
 
-Karta faktów, którą dostaje model, ma kolumnę „ocena” z kierunkiem zmiany, strefą RSI
-i położeniem kursu względem średniej, wyznaczonymi przez kod.
+Karta faktów, którą dostaje model, ma kolumnę „ocena” z oceną słowną wyznaczoną przez kod
+(kierunek zmiany, strefa RSI, położenie kursu, układ średnich, szerokość wstęg).
+Analityk wiadomości dostaje tylko wiadomości, które wymieniają spółkę (nazwę lub symbol),
+oraz zmiany kursu z karty, żeby mógł wskazać, gdy opinia z artykułu przeczy danym.
+Na końcu raportu kod dopisuje zakres danych: daty notowań, sprawozdania rocznego, odczytów
+makro i wiadomości, ostrzeżenie, gdy notowania są starsze niż wiadomości, oraz listę
+brakujących wielkości.
 
 Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz poprawić. Gotowy
 raport w razie błędów wraca do redaktora z ich listą (najwyżej dwa razy), a to, czego nie
-udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]” lub
-„[niezweryfikowana interpretacja]”. Każda liczba w raporcie ma w aplikacji podpowiedź
+udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]”,
+„[niezweryfikowana interpretacja]” lub „[brak źródła]”. Twierdzeń bez liczb i ocen
+(np. o popycie konsumentów) weryfikator nie sprawdza. Każda liczba w raporcie ma w aplikacji podpowiedź
 ze źródłem danych i sposobem obliczenia, widoczną po kliknięciu liczby lub najechaniu na nią.
 
 ## Ewaluacja
@@ -144,8 +160,9 @@ src/marketagents/
   config.py              konfiguracja ze zmiennych środowiskowych
   cli.py                 polecenia: pobieranie danych i generowanie raportu
   facts.py               karta faktów
-  verifier.py            weryfikacja liczb i lat w raporcie
-  interpretation.py      zgodność opisu z liczbami (kierunek, RSI, średnie, okres zmiany)
+  verifier.py            weryfikacja liczb, lat i numerów źródeł w raporcie
+  interpretation.py      zgodność opisu z liczbami i ocenami kodu
+  coverage.py            opis zakresu danych dopisywany do raportu
   evaluation.py          ewaluacja: wyniki raportów, wariant bez karty, wstrzyknięte błędy
   graph.py               graf agentów (LangGraph)
   prompts.py             instrukcje dla agentów

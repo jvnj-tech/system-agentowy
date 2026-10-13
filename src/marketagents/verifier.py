@@ -10,7 +10,8 @@ Działa bez modelu językowego, więc jej wynik jest powtarzalny. Sprawdza, czy:
    zamiast SMA(20)) przechodzi niezauważona. Zgodność z kartą służy tylko do podpowiedzi,
    którego odwołania użyć przy poprawce,
 3. lata w tekście odpowiadają datom z karty faktów,
-4. słowny opis liczby i okres zmiany zgadzają się z kartą (moduł interpretation).
+4. słowny opis liczby i okres zmiany zgadzają się z kartą (moduł interpretation),
+5. każde zdanie o wiadomościach wskazuje źródło numerem z listy newsów, np. [2].
 """
 
 from __future__ import annotations
@@ -32,6 +33,9 @@ NUMBER = re.compile(
     r"|(?<![\w.,])[-−+]?\d+(?:[.,]\d+)?(?![\w]|-[^\W\d])"
 )
 ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+# Odwołanie do wiadomości z listy newsów, np. [3].
+CITATION = re.compile(r"\[(\d{1,2})\]")
+NEWS_SECTION = "## Wiadomości"
 LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)
 INDEX_NAME = re.compile(r"NASDAQ[- ]?100|S&P[- ]?500|Russell[- ]?2000", re.IGNORECASE)
 # Koniec zdania: znak końca i odstęp albo nowy wiersz. Kropka po skrócie („ok. 61”, „np. RSI”)
@@ -64,11 +68,20 @@ class Verification:
     suggestions: dict[str, str] = field(default_factory=dict)
     # Liczby, które powtarzają wartość faktu, do którego odwołuje się to samo zdanie.
     repeated: list[str] = field(default_factory=list)
+    # Zdania o wiadomościach bez numeru źródła i numery spoza listy newsów.
+    uncited: list[str] = field(default_factory=list)
+    bad_citations: list[str] = field(default_factory=list)
+    news_count: int = 0
 
     @property
     def ok(self) -> bool:
         return not (
-            self.unknown_ids or self.unverified_numbers or self.wrong_years or self.interpretations
+            self.unknown_ids
+            or self.unverified_numbers
+            or self.wrong_years
+            or self.interpretations
+            or self.uncited
+            or self.bad_citations
         )
 
     @property
@@ -106,7 +119,43 @@ class Verification:
             for y in self.wrong_years
         ]
         out += [i.message for i in self.interpretations]
+        out += [
+            f"Zdanie „{_short(s)}” nie wskazuje źródła; dodaj numer wiadomości, np. [1]"
+            for s in self.uncited
+        ]
+        out += [
+            f"Numer [{n}] nie odpowiada żadnej wiadomości (dostępne: 1–{self.news_count})"
+            for n in self.bad_citations
+        ]
         return out
+
+
+def _short(sentence: str) -> str:
+    plain = re.sub(r"\s+", " ", sentence).strip()
+    return plain if len(plain) <= 90 else plain[:87] + "..."
+
+
+def news_part(text: str) -> str:
+    """Sekcja wiadomości raportu (od nagłówka do następnego nagłówka) albo pusty tekst."""
+    start = text.find(NEWS_SECTION)
+    if start < 0:
+        return ""
+    body = text[start + len(NEWS_SECTION) :]
+    end = body.find("\n## ")
+    return body if end < 0 else body[:end]
+
+
+def check_citations(text: str, count: int) -> tuple[list[str], list[str]]:
+    """Zdania bez numeru źródła oraz numery spoza listy (1..count)."""
+    uncited, bad = [], []
+    for sentence in sentences(text):
+        if sentence.lstrip().startswith("#") or len(sentence.split()) < 4:
+            continue
+        numbers = CITATION.findall(sentence)
+        if not numbers:
+            uncited.append(sentence.strip())
+        bad += [n for n in numbers if not 1 <= int(n) <= count]
+    return uncited, sorted(set(bad), key=int)
 
 
 def parse_number(text: str) -> float:
@@ -159,7 +208,15 @@ def fact_years(facts: FactSheet) -> frozenset[int]:
     return frozenset(years)
 
 
-def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWED) -> Verification:
+def verify(
+    text: str,
+    facts: FactSheet,
+    allowed: frozenset[int] = DEFAULT_ALLOWED,
+    news_count: int | None = None,
+    whole_text_is_news: bool = False,
+) -> Verification:
+    """news_count: liczba wiadomości na liście; gdy podana, sprawdzane są numery źródeł
+    w sekcji wiadomości raportu albo (whole_text_is_news) w całym tekście analizy newsów."""
     allowed = allowed | indicator_periods(facts) | label_numbers(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
     years = fact_years(facts)
@@ -172,6 +229,7 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
     for sentence in sentences(LIST_MARKER.sub(" ", text)):
         referenced = [facts[i] for i in PLACEHOLDER.findall(sentence) if i in facts]
         stripped = INDEX_NAME.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", sentence)))
+        stripped = CITATION.sub(" ", stripped)
         wrong_years += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
         for match in NUMBER.finditer(YEAR.sub(" ", stripped)):
             raw = match.group(0)
@@ -188,6 +246,13 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
             if same is not None:
                 repeated.append(raw)
 
+    uncited: list[str] = []
+    bad: list[str] = []
+    if news_count is not None:
+        part = text if whole_text_is_news else news_part(text)
+        if part.strip():
+            uncited, bad = check_citations(part, news_count)
+
     return Verification(
         rendered=render(text, facts),
         unknown_ids=unknown,
@@ -197,11 +262,32 @@ def verify(text: str, facts: FactSheet, allowed: frozenset[int] = DEFAULT_ALLOWE
         checked_numbers=checked,
         suggestions=suggestions,
         repeated=repeated,
+        uncited=uncited,
+        bad_citations=bad,
+        news_count=news_count or 0,
     )
 
 
+def cite(text: str, news: list[dict]) -> str:
+    """Zamienia numery wiadomości [n] na odnośniki z nazwą źródła i datą."""
+
+    def link(match: re.Match) -> str:
+        n = int(match.group(1))
+        if not 1 <= n <= len(news):
+            return match.group(0)
+        item = news[n - 1]
+        label = f"{item.get('source', 'źródło')}, {str(item.get('published', ''))[:10]}"
+        url = item.get("url")
+        return f"[{label}]({url})" if url else f"({label})"
+
+    return CITATION.sub(link, text)
+
+
+SOURCE_MARKER = " [brak źródła]"
+
+
 # Jednostka dopisana przez model zaraz po odwołaniu, które już ją zawiera („{{close}} USD”).
-TRAILING_UNIT = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}(\s*(?:USD|%|mld USD))?(?![\w])")
+TRAILING_UNIT = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}(\s*(?:USD|%|mld USD|p\.p\.))?(?![\w])")
 
 
 def render(text: str, facts: FactSheet, html: bool = False) -> str:
