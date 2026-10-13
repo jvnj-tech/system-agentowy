@@ -173,6 +173,16 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
     }
 
 
+def current_model() -> str:
+    """Model, który napisze następny raport (pierwszy dostępny z listy)."""
+    pool = chat_model()
+    available = pool.available()
+    if not available:
+        return "brak dostępnego modelu (wyczerpane limity)"
+    provider, _, name = available[0].partition(":")
+    return f"{name} ({'Groq' if provider == 'groq' else 'Gemini'})"
+
+
 def models_description() -> str:
     """Modele w puli w kolejności użycia, z informacją o wyczerpanych limitach."""
     pool = chat_model()
@@ -212,16 +222,6 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
     with st.sidebar:
         st.header("Spółka")
         choice = st.selectbox("Spółka z NASDAQ-100", labels, index=0)
-        shares = len(labels)
-        extra = (
-            f", {shares} akcji (spółki z kilkoma klasami akcji)"
-            if shares > index.company_count
-            else ""
-        )
-        st.caption(
-            f"Skład indeksu: {index.company_count} spółek{extra}, stan na {index.as_of} "
-            f"({index.source})."
-        )
         typed = st.text_input("lub symbol spoza listy", placeholder="np. INTC").strip().upper()
         ticker = typed or choice.split(" — ")[0]
         if not TICKER.match(ticker):
@@ -231,10 +231,7 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
         ma = ma_settings()
         clicked = st.button(label, type="primary", width="stretch", disabled=ma is None)
-        st.caption(
-            f"Modele w kolejności użycia: {models_description()}. Po wyczerpaniu limitu "
-            "zapytania przechodzą do następnego modelu. Generowanie trwa zwykle kilka minut."
-        )
+        st.caption(f"Model: {current_model()}")
     return ticker, clicked, ma
 
 
