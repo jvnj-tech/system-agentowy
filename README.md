@@ -61,10 +61,29 @@ Okna średnich kroczących (trzy SMA i jedna EMA) można zmienić w panelu boczn
 wartości domyślne ustawiają zmienne `SMA_WINDOWS` i `EMA_WINDOW`. Zmienione okna trafiają
 do wykresów, karty faktów i raportu (po jego ponownym wygenerowaniu).
 
-Raport wymaga modelu językowego. Dostawcę wybiera się zmienną `LLM_PROVIDER`:
-`gemini` (klucz `GOOGLE_API_KEY` z Google AI Studio, model w `GEMINI_MODEL`) albo `groq`
-(klucz `GROQ_API_KEY` z konsoli Groq, model w `GROQ_MODEL`). Oba mają darmowe plany
-z limitami zapytań; jeden raport to zwykle 6–8 zapytań, a każde pytanie do asystenta 1–2.
+Raport wymaga modelu językowego. Modele podaje się w zmiennej `LLM_MODELS` w kolejności
+preferencji, w zapisie `dostawca:model`, np.
+`groq:openai/gpt-oss-120b,gemini:gemini-3.8-flash` (klucze `GROQ_API_KEY` z konsoli Groq
+i `GOOGLE_API_KEY` z Google AI Studio). Darmowe plany mają limity na minutę i na dobę
+(np. 200 tys. tokenów dziennie dla gpt-oss-120b w Groq, czyli ok. 10 raportów). Limit
+minutowy system odczekuje na tym samym modelu, a po wyczerpaniu limitu dobowego albo przy
+przeciążeniu serwera zapytania przechodzą do następnego modelu z listy; wyczerpany model
+jest pomijany do czasu odnowienia limitu podanego przez serwer (stan w
+`.cache/limity_modeli.json`). Aplikacja pokazuje, które modele napisały raport.
+Bez `LLM_MODELS` używany jest jeden model z `LLM_PROVIDER` (`GEMINI_MODEL` albo `GROQ_MODEL`).
+
+Do puli trafiają tylko modele, które zaliczyły test kwalifikacyjny:
+
+```bash
+uv run marketagents-eval kwalifikacja                      # modele z LLM_MODELS
+uv run marketagents-eval kwalifikacja groq:qwen/qwen3.8-27b --spolki AAPL LULU
+```
+
+Test uruchamia raporty na tych samych zapisanych danych (`wyniki/kwalifikacja_dane/`)
+i wymaga, by każdy agent zwrócił niepustą odpowiedź, raport był kompletny, po poprawkach
+zostało w nim najwyżej jedno oznaczenie, a raport powstał w ciągu 10 minut. Wyniki trafiają
+do `wyniki/kwalifikacja.json`. Dopóki żaden model z listy nie był testowany, lista nie jest
+zawężana; zmienna `LLM_REQUIRE_QUALIFIED=0` wyłącza ten warunek.
 Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa pracy: pomijana jest tylko
 odpowiednia część analizy.
 
@@ -166,7 +185,8 @@ src/marketagents/
   evaluation.py          ewaluacja: wyniki raportów, wariant bez karty, wstrzyknięte błędy
   graph.py               graf agentów (LangGraph)
   prompts.py             instrukcje dla agentów
-  llm.py                 połączenie z modelem (Gemini lub Groq)
+  llm.py                 pula modeli (Gemini, Groq) z przełączaniem po wyczerpaniu limitu
+  qualification.py       test kwalifikacyjny modeli do puli
   qa.py                  asystent pytań o raport
   analytics.py           miary do wykresów (obsunięcie, zmienność, zwroty miesięczne, marże)
   charts.py              wykresy Plotly

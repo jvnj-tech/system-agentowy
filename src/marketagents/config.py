@@ -23,6 +23,11 @@ class Settings:
     groq_model: str
     llm_rpm: float
     moving_averages: MovingAverages = MovingAverages()
+    # Modele w kolejności preferencji, np. ("groq:openai/gpt-oss-120b", "gemini:gemini-3.8-flash").
+    llm_models: tuple[str, ...] = ()
+    # Czy pula ma używać tylko modeli z zaliczonym testem kwalifikacyjnym.
+    require_qualified: bool = True
+    results_dir: Path = Path("wyniki")
 
 
 def load_settings() -> Settings:
@@ -40,4 +45,7 @@ def load_settings() -> Settings:
         moving_averages=MovingAverages.parse(
             os.getenv("SMA_WINDOWS", "20,50,200"), os.getenv("EMA_WINDOW", "20")
         ),
+        llm_models=tuple(m.strip() for m in os.getenv("LLM_MODELS", "").split(",") if m.strip()),
+        require_qualified=os.getenv("LLM_REQUIRE_QUALIFIED", "1") != "0",
+        results_dir=Path(os.getenv("MARKETAGENTS_RESULTS_DIR", "wyniki")),
     )

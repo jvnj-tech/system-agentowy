@@ -95,16 +95,23 @@ class UsageCounter(BaseCallbackHandler):
         self.input_tokens = 0
         self.output_tokens = 0
         self.reported = False
+        # Liczba odpowiedzi każdego modelu z puli (po przełączeniu raport pisze kilka modeli).
+        self.models: dict[str, int] = {}
 
     def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        usage = [
-            g.message.usage_metadata
+        messages = [
+            g.message
             for gens in response.generations
             for g in gens
-            if isinstance(getattr(g, "message", None), AIMessage) and g.message.usage_metadata
+            if isinstance(getattr(g, "message", None), AIMessage)
         ]
+        usage = [m.usage_metadata for m in messages if m.usage_metadata]
         with self._lock:
             self.calls += 1
+            for m in messages:
+                spec = m.response_metadata.get("model_spec")
+                if spec:
+                    self.models[spec] = self.models.get(spec, 0) + 1
             for u in usage:
                 self.reported = True
                 self.input_tokens += u.get("input_tokens", 0)
@@ -155,7 +162,8 @@ def report_record(
     return {
         "ticker": ticker,
         "variant": variant,
-        "model": model,
+        "model": ", ".join(usage.models) or model,
+        "models": dict(usage.models),
         "created": datetime.now().isoformat(timespec="seconds"),
         "elapsed_s": round(elapsed, 1),
         "llm_calls": usage.calls,
@@ -541,7 +549,7 @@ def _generate(args, settings, cache) -> None:
     from marketagents.llm import get_chat_model
 
     llm = get_chat_model(settings)
-    model = settings.groq_model if settings.llm_provider == "groq" else settings.gemini_model
+    model = ", ".join(getattr(llm, "specs", []))
     variant = WITHOUT_CARD if args.bez_karty else WITH_CARD
     graph = build_graph(llm, lambda t: load_market_data(settings, cache, t))
     for ticker in [t.upper() for t in args.tickers]:
@@ -567,6 +575,31 @@ def _generate(args, settings, cache) -> None:
         )
 
 
+def _qualify(args, settings) -> None:
+    from marketagents.llm import configured_specs
+    from marketagents.qualification import DEFAULT_TICKERS, qualify, save_result
+
+    tickers = [t.upper() for t in (args.spolki or DEFAULT_TICKERS)]
+    for spec in args.modele or configured_specs(settings):
+        print(f"{spec}: test na {', '.join(tickers)}...", flush=True)
+        result = qualify(spec, settings, tickers)
+        save_result(settings.results_dir, spec, result)
+        if result["zaliczony"] is None:
+            print(f"  przerwany ({result['przerwany']}); powtórz test później", flush=True)
+            continue
+        if "powód" in result:
+            print(f"  NIEZALICZONY: {result['powód']}", flush=True)
+            continue
+        print(f"  {'ZALICZONY' if result['zaliczony'] else 'NIEZALICZONY'}", flush=True)
+        for ticker, r in result["spółki"].items():
+            failed = [k for k, ok in r["kryteria"].items() if not ok]
+            print(
+                f"  {ticker}: {r['czas_s']} s, oznaczenia {r['oznaczenia']}"
+                + (f", niespełnione: {', '.join(failed)}" if failed else ""),
+                flush=True,
+            )
+
+
 def main(argv: list[str] | None = None) -> None:
     from marketagents.config import load_settings
     from marketagents.data.cache import DiskCache
@@ -582,9 +615,17 @@ def main(argv: list[str] | None = None) -> None:
     inj.add_argument("--sedzia", action="store_true", help="także ocena modelu w roli sędziego")
     inj.add_argument("--ziarno", type=int, default=0, help="ziarno losowania zmian")
     inj.add_argument("--csv", help="zapis wszystkich przypadków do pliku CSV")
+    qual = sub.add_parser("kwalifikacja", help="test kwalifikacyjny modeli do puli")
+    qual.add_argument(
+        "modele", nargs="*", help="np. groq:openai/gpt-oss-120b (domyślnie LLM_MODELS)"
+    )
+    qual.add_argument("--spolki", nargs="+", help="spółki testu (domyślnie AAPL LULU)")
     args = parser.parse_args(argv)
 
     settings = load_settings()
+    if args.command == "kwalifikacja":
+        _qualify(args, settings)
+        return
     if args.command == "raporty":
         _generate(args, settings, DiskCache(settings.cache_dir, offline=settings.offline))
         return

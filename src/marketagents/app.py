@@ -33,7 +33,7 @@ from marketagents.evaluation import UsageCounter, append_record, report_record
 from marketagents.facts import FactSheet
 from marketagents.graph import build_graph, run_report
 from marketagents.indicators import MovingAverages, compute_all
-from marketagents.llm import get_chat_model
+from marketagents.llm import AllModelsExhausted, get_chat_model
 from marketagents.qa import answer_question
 
 TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
@@ -87,6 +87,8 @@ def macro_data() -> pd.DataFrame | None:
 
 def describe_error(exc: Exception) -> str:
     text = str(exc)
+    if isinstance(exc, AllModelsExhausted):
+        return text + " Listę modeli ustawia zmienna LLM_MODELS w pliku .env."
     if any(m in text for m in ("RESOURCE_EXHAUSTED", "rate_limit", "429")):
         return (
             "wyczerpano limit zapytań do modelu w darmowym planie. Spróbuj później albo zmień "
@@ -138,7 +140,7 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
         status.update(label=f"Raport gotowy po {elapsed:.0f} s", state="complete", expanded=False)
     # Każdy raport trafia do pliku wyników ewaluacji (marketagents-eval podsumowanie).
     try:
-        append_record(report_record(ticker, state, elapsed, usage, model_name(settings)))
+        append_record(report_record(ticker, state, elapsed, usage, models_description()))
     except OSError as exc:
         st.caption(f"Nie udało się zapisać wyników ewaluacji: {exc}")
     return {
@@ -147,11 +149,22 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
         "ma": ma,
         "llm_calls": usage.calls,
         "tokens": usage.tokens(),
+        "models": dict(usage.models),
     }
 
 
-def model_name(settings) -> str:
-    return settings.groq_model if settings.llm_provider == "groq" else settings.gemini_model
+def models_description() -> str:
+    """Modele w puli w kolejności użycia, z informacją o wyczerpanych limitach."""
+    pool = chat_model()
+    blocked = pool.blocked_until()
+    names = []
+    for spec in pool.specs:
+        if spec in blocked:
+            until = time.strftime("%H:%M", time.localtime(blocked[spec]))
+            names.append(f"{spec} (limit wyczerpany do ok. {until})")
+        else:
+            names.append(spec)
+    return ", ".join(names)
 
 
 def ma_settings() -> MovingAverages | None:
@@ -188,8 +201,10 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
         ma = ma_settings()
         clicked = st.button(label, type="primary", width="stretch", disabled=ma is None)
-        model = model_name(resources()[0])
-        st.caption(f"Raport tworzą agenci na modelu {model}; generowanie trwa zwykle kilka minut.")
+        st.caption(
+            f"Modele w kolejności użycia: {models_description()}. Po wyczerpaniu limitu "
+            "zapytania przechodzą do następnego modelu. Generowanie trwa zwykle kilka minut."
+        )
     return ticker, clicked, ma
 
 
@@ -219,6 +234,11 @@ def show_report(ticker: str, result: dict, ma: MovingAverages | None) -> None:
         st.caption(
             f"Wywołania modelu: {result['llm_calls']}, tokeny: {input_tokens} wejściowych "
             f"i {output_tokens} wyjściowych."
+            + (
+                " Odpowiedzi: " + ", ".join(f"{m} ({n})" for m, n in result["models"].items()) + "."
+                if result.get("models")
+                else ""
+            )
         )
     st.markdown(FACT_STYLE + result.get("report_html", result["report"]), unsafe_allow_html=True)
     st.caption("Kliknij liczbę lub najedź na nią kursorem, aby zobaczyć jej źródło.")
