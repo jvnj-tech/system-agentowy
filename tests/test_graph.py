@@ -222,3 +222,38 @@ def test_empty_model_answer_is_retried_and_then_skipped():
     state, _ = run(["Analiza.", "", "", "", "", "", ""], MarketData(facts=TECH))
     assert not state["verified"]
     assert body(state["report"]).startswith("Model językowy nie zwrócił treści raportu")
+
+
+def test_report_restarts_on_next_model_after_daily_limit(tmp_path):
+    from marketagents.graph import run_report_with_fallback
+    from marketagents.llm import ModelPool
+
+    class LimitedModel(FakeListChatModel):
+        """Odpowiada, dopóki nie wyczerpie limitu dobowego."""
+
+        left: int = 1
+
+        def _call(self, messages, *args, **kwargs):
+            if self.left <= 0:
+                raise RuntimeError("Error code: 429 - tokens per day (TPD). Try again in 9m0s.")
+            self.left -= 1
+            return super()._call(messages, *args, **kwargs)
+
+    first = LimitedModel(responses=["Analiza A."], left=1)
+    second = FakeListChatModel(responses=["Analiza B.", "Raport B {{close}}." + END])
+    pool = ModelPool(
+        specs=["groq:a", "gemini:b"], models=[first, second], state_file=tmp_path / "limity.json"
+    )
+    restarts = []
+    state = run_report_with_fallback(
+        pool,
+        lambda llm: build_graph(llm, lambda t: MarketData(facts=TECH)),
+        "TEST",
+        on_restart=restarts.append,
+    )
+    assert restarts == ["groq:a"]
+    assert state["model"] == "gemini:b" and state["restarts"] == 1
+    # Cały raport, także analiza, pochodzi od drugiego modelu.
+    assert state["analyses"] == {"techniczna": "Analiza B."}
+    assert body(state["report"]).startswith("Raport B 100,00 USD.")
+    assert pool.available() == ["gemini:b"]

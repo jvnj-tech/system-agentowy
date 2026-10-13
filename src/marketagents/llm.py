@@ -176,6 +176,17 @@ class ModelPool(BaseChatModel):
         with self._lock:
             return [s for s in self.specs if self._blocked.get(s, 0) <= now]
 
+    def only(self, spec: str) -> ModelPool:
+        """Pula z jednym modelem, ze wspólnym stanem wyłączeń (raport pisany jednym modelem)."""
+        single = ModelPool(
+            specs=[spec], models=[self.models[self.specs.index(spec)]], state_file=self.state_file
+        )
+        single._lock, single._blocked = self._lock, self._blocked
+        return single
+
+    def exhausted(self, errors: Iterable[str] = ()) -> AllModelsExhausted:
+        return AllModelsExhausted(_exhausted_message(self.blocked_until(), errors))
+
     def blocked_until(self) -> dict[str, float]:
         now = time.time()
         with self._lock:

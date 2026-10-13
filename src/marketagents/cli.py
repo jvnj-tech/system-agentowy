@@ -91,7 +91,7 @@ def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
 
 
 def report(argv: list[str] | None = None) -> None:
-    from marketagents.graph import build_graph, run_report
+    from marketagents.graph import build_graph, run_report_with_fallback
     from marketagents.llm import get_chat_model
 
     parser = argparse.ArgumentParser(description="Wygenerowanie raportu dla spółki.")
@@ -103,13 +103,14 @@ def report(argv: list[str] | None = None) -> None:
     cache = DiskCache(settings.cache_dir, offline=settings.offline)
 
     print("Pobieranie danych i generowanie raportu...", flush=True)
-    graph = build_graph(get_chat_model(settings), lambda t: load_market_data(settings, cache, t))
-    state = run_report(
-        graph,
+    state = run_report_with_fallback(
+        get_chat_model(settings),
+        lambda llm: build_graph(llm, lambda t: load_market_data(settings, cache, t)),
         args.ticker.upper(),
         lambda node: print(
             f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True
         ),
+        on_restart=lambda spec: print(f"{spec}: limit wyczerpany, raport od nowa na następnym"),
     )
     print()
 

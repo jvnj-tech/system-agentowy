@@ -171,6 +171,7 @@ def report_record(
         "output_tokens": output_tokens,
         "analyst_fixes": state.get("analyst_fixes", 0),
         "attempts": state.get("attempts"),
+        "restarts": state.get("restarts", 0),
         "verified": state.get("verified"),
         "issue_counts": state.get("issue_counts", []),
         "unverified": len(state.get("unverified", [])),
@@ -545,23 +546,28 @@ def markdown_table(rows: list[dict]) -> str:
 
 def _generate(args, settings, cache) -> None:
     from marketagents.cli import load_market_data
-    from marketagents.graph import build_graph, run_report
+    from marketagents.graph import build_graph, run_report_with_fallback
     from marketagents.llm import get_chat_model
 
     llm = get_chat_model(settings)
     model = ", ".join(getattr(llm, "specs", []))
     variant = WITHOUT_CARD if args.bez_karty else WITH_CARD
-    graph = build_graph(llm, lambda t: load_market_data(settings, cache, t))
+
+    def make_graph(model):
+        return build_graph(model, lambda t: load_market_data(settings, cache, t))
+
     for ticker in [t.upper() for t in args.tickers]:
         usage = UsageCounter()
         config = {"callbacks": [usage]}
         start = time.perf_counter()
         try:
             if variant == WITH_CARD:
-                state = run_report(graph, ticker, config=config)
+                state = run_report_with_fallback(llm, make_graph, ticker, config=config)
             else:
                 data = load_market_data(settings, cache, ticker)
-                state = report_without_fact_card(llm, ticker, data, config)
+                # Wariant porównawczy też pisze jeden model: pierwszy dostępny z puli.
+                single = llm.only(llm.available()[0]) if hasattr(llm, "only") else llm
+                state = report_without_fact_card(single, ticker, data, config)
         except Exception as exc:  # noqa: BLE001
             print(f"{ticker}: błąd ({exc})", flush=True)
             continue
@@ -619,7 +625,7 @@ def main(argv: list[str] | None = None) -> None:
     qual.add_argument(
         "modele", nargs="*", help="np. groq:openai/gpt-oss-120b (domyślnie LLM_MODELS)"
     )
-    qual.add_argument("--spolki", nargs="+", help="spółki testu (domyślnie AAPL LULU)")
+    qual.add_argument("--spolki", nargs="+", help="spółki testu (domyślnie AAPL LULU INTC SBUX)")
     args = parser.parse_args(argv)
 
     settings = load_settings()

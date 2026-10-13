@@ -69,19 +69,21 @@ preferencji, w zapisie `dostawca:model`, np.
 i `GOOGLE_API_KEY` z Google AI Studio). Darmowe plany mają limity na minutę i na dobę
 (np. 200 tys. tokenów dziennie dla gpt-oss-120b w Groq, czyli ok. 10 raportów). Limit
 minutowy system odczekuje na tym samym modelu, a po wyczerpaniu limitu dobowego albo przy
-przeciążeniu serwera zapytania przechodzą do następnego modelu z listy; wyczerpany model
-jest pomijany do czasu odnowienia limitu podanego przez serwer (stan w
-`.cache/limity_modeli.json`). Aplikacja pokazuje, które modele napisały raport.
+dłuższym przeciążeniu serwera raport zaczyna się od nowa na następnym modelu z listy, tak
+żeby cały raport napisał jeden model. Wyczerpany model jest pomijany do czasu odnowienia
+limitu podanego przez serwer (stan w `.cache/limity_modeli.json`). Aplikacja pokazuje,
+który model napisał raport. Asystent pytań przełącza model przy pojedynczym pytaniu.
 Bez `LLM_MODELS` używany jest jeden model z `LLM_PROVIDER` (`GEMINI_MODEL` albo `GROQ_MODEL`).
 
 Do puli trafiają tylko modele, które zaliczyły test kwalifikacyjny:
 
 ```bash
 uv run marketagents-eval kwalifikacja                      # modele z LLM_MODELS
-uv run marketagents-eval kwalifikacja groq:qwen/qwen3.8-27b --spolki AAPL LULU
+uv run marketagents-eval kwalifikacja groq:qwen/qwen3.8-27b --spolki AAPL INTC
 ```
 
-Test uruchamia raporty na tych samych zapisanych danych (`wyniki/kwalifikacja_dane/`)
+Test uruchamia raporty dla AAPL (wzrost kursu), LULU (spadek), INTC (straty, brak C/Z)
+i SBUX (ujemny kapitał własny) na tych samych zapisanych danych (`wyniki/kwalifikacja_dane/`)
 i wymaga, by każdy agent zwrócił niepustą odpowiedź, raport był kompletny, po poprawkach
 zostało w nim najwyżej jedno oznaczenie, a raport powstał w ciągu 10 minut. Wyniki trafiają
 do `wyniki/kwalifikacja.json`. Dopóki żaden model z listy nie był testowany, lista nie jest

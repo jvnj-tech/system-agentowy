@@ -21,7 +21,9 @@ from pathlib import Path
 
 MAX_MARKED = 1
 MAX_SECONDS = 600
-DEFAULT_TICKERS = ("AAPL", "LULU")
+# Różne sytuacje: wzrost kursu (AAPL), spadek (LULU), straty i brak C/Z (INTC),
+# ujemny kapitał własny i brak marży brutto (SBUX).
+DEFAULT_TICKERS = ("AAPL", "LULU", "INTC", "SBUX")
 RESULTS_FILE = "kwalifikacja.json"
 
 

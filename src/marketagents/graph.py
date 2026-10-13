@@ -26,7 +26,7 @@ from marketagents import prompts
 from marketagents.coverage import coverage_note
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet
 from marketagents.interpretation import mark_sentences, prompt_table
-from marketagents.llm import message_text
+from marketagents.llm import AllModelsExhausted, message_text
 from marketagents.verifier import SOURCE_MARKER, cite, mark_unverified, render, verify
 
 MAX_FIXES = 2
@@ -62,6 +62,9 @@ class ReportState(TypedDict, total=False):
     report: str
     report_html: str
     verified: bool
+    # Model, który napisał raport, i liczba rozpoczęć od nowa po wyczerpaniu limitu.
+    model: str
+    restarts: int
 
 
 def _format_news(news: list[dict]) -> str:
@@ -241,3 +244,38 @@ def run_report(
             if on_step:
                 on_step(node)
     return state
+
+
+def run_report_with_fallback(
+    llm: BaseChatModel,
+    make_graph: Callable[[BaseChatModel], object],
+    ticker: str,
+    on_step: Callable[[str], None] | None = None,
+    config: dict | None = None,
+    on_restart: Callable[[str], None] | None = None,
+) -> ReportState:
+    """Raport od początku do końca pisze jeden model z puli.
+
+    Gdy model wyczerpie limit dobowy (albo serwer jest przeciążony), raport zaczyna się od
+    nowa na następnym dostępnym modelu, żeby nie składać go z tekstów różnych modeli.
+    Limit minutowy jest odczekiwany na tym samym modelu (w puli). on_restart dostaje nazwę
+    modelu, na którym przerwano raport.
+    """
+    if not hasattr(llm, "only"):
+        return run_report(make_graph(llm), ticker, on_step, config)
+    tried: list[str] = []
+    while True:
+        candidates = [s for s in llm.available() if s not in tried]
+        if not candidates:
+            raise llm.exhausted(f"{s}: limit" for s in tried)
+        spec = candidates[0]
+        tried.append(spec)
+        try:
+            state = run_report(make_graph(llm.only(spec)), ticker, on_step, config)
+        except AllModelsExhausted:
+            if on_restart:
+                on_restart(spec)
+            continue
+        state["model"] = spec
+        state["restarts"] = len(tried) - 1
+        return state

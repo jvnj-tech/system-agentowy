@@ -31,7 +31,7 @@ from marketagents.data.macro import get_macro
 from marketagents.data.prices import get_prices
 from marketagents.evaluation import UsageCounter, append_record, report_record
 from marketagents.facts import FactSheet
-from marketagents.graph import build_graph, run_report
+from marketagents.graph import build_graph, run_report_with_fallback
 from marketagents.indicators import MovingAverages, compute_all
 from marketagents.llm import AllModelsExhausted, get_chat_model
 from marketagents.qa import answer_question
@@ -125,7 +125,6 @@ FACT_STYLE = """<style>
 def generate_report(ticker: str, ma: MovingAverages) -> dict:
     """Uruchamia graf agentów i pokazuje postęp kolejnych etapów."""
     settings, cache = resources()
-    graph = build_graph(chat_model(), lambda t: load_market_data(settings, cache, t, ma))
     start = time.perf_counter()
     editor_runs = 0
 
@@ -140,8 +139,23 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
                     name += f" (poprawka {editor_runs - 1})"
             st.write(f"✓ {name} — {time.perf_counter() - start:.0f} s")
 
+        def on_restart(spec: str) -> None:
+            nonlocal editor_runs
+            editor_runs = 0
+            st.write(
+                f"⚠ {spec} wyczerpał limit zapytań; raport zaczyna się od nowa "
+                "na następnym modelu z listy."
+            )
+
         usage = UsageCounter()
-        state = run_report(graph, ticker, on_step, config={"callbacks": [usage]})
+        state = run_report_with_fallback(
+            chat_model(),
+            lambda llm: build_graph(llm, lambda t: load_market_data(settings, cache, t, ma)),
+            ticker,
+            on_step,
+            config={"callbacks": [usage]},
+            on_restart=on_restart,
+        )
         elapsed = time.perf_counter() - start
         status.update(label=f"Raport gotowy po {elapsed:.0f} s", state="complete", expanded=False)
     # Każdy raport trafia do pliku wyników ewaluacji (marketagents-eval podsumowanie).
