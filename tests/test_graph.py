@@ -207,7 +207,8 @@ def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
     assert "| {{change_1y}} |" in news_prompt
     assert state["analyst_fixes"] == 1 and state["attempts"] == 2
     assert "nie wskazuje źródła" in llm.prompts[-1]
-    assert "tygodniu (Reuters, 2026-10-01)." in state["report"]
+    assert "tygodniu [1]." in state["report"]
+    assert "1. Reuters, 2026-10-01: Nowy produkt" in state["report"]
     assert "Zakres danych" in state["report"]
 
 
@@ -257,3 +258,13 @@ def test_report_restarts_on_next_model_after_daily_limit(tmp_path):
     assert state["analyses"] == {"techniczna": "Analiza B."}
     assert body(state["report"]).startswith("Raport B 100,00 USD.")
     assert pool.available() == ["gemini:b"]
+
+
+def test_unverified_number_is_marked_only_where_it_was_typed():
+    facts = TECH + [Fact("bb_width", "szerokość wstęg", 55.6, "%", 1, TECHNICAL)]
+    typed = "RSI {{rsi_14}} i szerokość wstęg {{bb_width}}, czyli 55,6 %." + END
+    state, _ = run(["Analiza."] + [typed] * (MAX_FIXES + 1), MarketData(facts=facts))
+    report = body(state["report"])
+    # RSI = 55,6 z karty nie dostaje oznaczenia, choć ma ten sam zapis co wpisana liczba.
+    assert report.count("[niezweryfikowane]") == 1
+    assert "czyli 55,6 [niezweryfikowane] %" in report

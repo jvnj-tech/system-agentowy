@@ -146,7 +146,27 @@ def test_news_sentences_must_cite_existing_items():
     # Bez listy newsów (news_count=None) numery nie są sprawdzane.
     assert verify(report, facts).uncited == []
 
-    news = [{"source": "Yahoo", "published": "2026-10-12 10:00", "url": "https://x.example/a"}]
-    assert cite("Zarząd zaprzeczył [1].", news) == (
-        "Zarząd zaprzeczył [Yahoo, 2026-10-12](https://x.example/a)."
+    news = [
+        {
+            "source": "Yahoo",
+            "published": "2026-10-12 10:00",
+            "url": "https://x.example/a",
+            "headline": "Zarząd zaprzecza [plotkom]",
+        },
+        {
+            "source": "CNBC",
+            "published": "2026-10-11 09:00",
+            "url": "https://x.example/b",
+            "headline": "Nowy produkt",
+        },
+    ]
+    text = (
+        "## Wiadomości\nNowy produkt [2]. Zarząd zaprzeczył [1][2].\n## Ograniczenia analizy\nBrak."
     )
+    cited = cite(text, news)
+    # Numery od nowa w kolejności cytowania, lista źródeł na końcu sekcji wiadomości.
+    assert "Nowy produkt [[1]](https://x.example/b)." in cited
+    assert "zaprzeczył [[2]](https://x.example/a)[[1]](https://x.example/b)." in cited
+    assert "1. [CNBC, 2026-10-11: Nowy produkt](https://x.example/b)" in cited
+    assert "2. [Yahoo, 2026-10-12: Zarząd zaprzecza plotkom](https://x.example/a)" in cited
+    assert cited.index("Źródła wiadomości") < cited.index("## Ograniczenia analizy")

@@ -269,18 +269,44 @@ def verify(
 
 
 def cite(text: str, news: list[dict]) -> str:
-    """Zamienia numery wiadomości [n] na odnośniki z nazwą źródła i datą."""
+    """Numery wiadomości [n] jako krótkie odnośniki i lista źródeł pod sekcją wiadomości.
+
+    Wiadomości są numerowane od nowa w kolejności pierwszego cytowania, a pod sekcją
+    wiadomości pojawia się lista: źródło, data i nagłówek z odnośnikiem do artykułu.
+    """
+    order: list[int] = []
+    for match in CITATION.finditer(text):
+        n = int(match.group(1))
+        if 1 <= n <= len(news) and n not in order:
+            order.append(n)
+    number = {n: i for i, n in enumerate(order, start=1)}
 
     def link(match: re.Match) -> str:
         n = int(match.group(1))
-        if not 1 <= n <= len(news):
+        if n not in number:
             return match.group(0)
-        item = news[n - 1]
-        label = f"{item.get('source', 'źródło')}, {str(item.get('published', ''))[:10]}"
-        url = item.get("url")
-        return f"[{label}]({url})" if url else f"({label})"
+        url = news[n - 1].get("url")
+        return f"[[{number[n]}]]({url})" if url else f"[{number[n]}]"
 
-    return CITATION.sub(link, text)
+    cited = CITATION.sub(link, text)
+    if not order:
+        return cited
+    lines = []
+    for n in order:
+        item = news[n - 1]
+        date = str(item.get("published", ""))[:10]
+        headline = re.sub(r"[\[\]]", "", str(item.get("headline", ""))).strip()
+        label = f"{item.get('source', 'źródło')}, {date}: {headline}"
+        url = item.get("url")
+        lines.append(f"{number[n]}. [{label}]({url})" if url else f"{number[n]}. {label}")
+    sources = "\n\n*Źródła wiadomości:*\n\n" + "\n".join(lines) + "\n"
+    start = cited.find(NEWS_SECTION)
+    if start < 0:
+        return cited.rstrip() + sources
+    end = cited.find("\n## ", start + len(NEWS_SECTION))
+    if end < 0:
+        return cited.rstrip() + sources
+    return cited[:end].rstrip() + sources + cited[end:]
 
 
 SOURCE_MARKER = " [brak źródła]"

@@ -158,6 +158,9 @@ def test_distance_and_band_width_follow_assessment():
     assert found("Odległość od SMA(200) {{dist_sma_200}} oznacza wyraźne oddalenie.")
     assert not found("Kurs jest poniżej SMA(200), odległość wynosi {{dist_sma_200}}.")
     assert found("Wstęgi Bollingera są wąskie, co oznacza małą zmienność.")
+    assert found("Wstęgi Bollingera są szersze niż zwykle.")
+    # rzeczownik „szerokość” nie jest oceną
+    assert not found("Szerokość wstęg Bollingera wynosi {{bb_width}} i jest typowa.")
     assert not found("Kurs znajduje się między wstęgami Bollingera.")
 
 

@@ -178,13 +178,13 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
         if not state["verified"]:
             draft = mark_sentences(draft, state.get("flagged", []))
             draft = mark_sentences(draft, state.get("uncited", []), SOURCE_MARKER)
+            # Oznaczane są liczby wpisane przez model, zanim w tekst trafią wartości z karty:
+            # inaczej oznaczenie trafiłoby też do poprawnej wartości o tym samym zapisie.
+            draft = mark_unverified(draft, state["unverified"])
         # Zakres danych dopisuje kod po weryfikacji, więc jego daty nie są sprawdzane
         # jak tekst modelu.
         note = "\n\n" + coverage_note(facts, news) + "\n"
         plain, html = render(draft, facts), render(draft, facts, html=True)
-        if not state["verified"]:
-            plain = mark_unverified(plain, state["unverified"])
-            html = mark_unverified(html, state["unverified"])
         return {
             "report": cite(plain, news).rstrip() + note,
             "report_html": cite(html, news).rstrip() + note,

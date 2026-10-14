@@ -328,8 +328,12 @@ def _check_distance(sentence: str, refs: list[str], facts: FactSheet) -> Interpr
     return None
 
 
-NARROW = re.compile(r"\b(?:wąsk\w*|zwęż\w*|ściśnięt\w*)", re.IGNORECASE)
-WIDE = re.compile(r"\b(?:szerok\w*|rozszerz\w*)", re.IGNORECASE)
+# Przymiotniki i czasowniki oceniające szerokość; rzeczownik „szerokość” sam niczego nie ocenia
+# („szerokość wstęg wynosi …”), więc nie jest tu dopasowywany.
+NARROW = re.compile(
+    r"\b(?:wąsk(?:i|ie|a|ą|ich|imi|im)|węż(?:sz\w*)|zwęż\w*|ściśnięt\w*)\b", re.IGNORECASE
+)
+WIDE = re.compile(r"\b(?:szerok(?:i|ie|a|ą|ich|imi|im)|szersz\w*|rozszerz\w*)\b", re.IGNORECASE)
 
 
 def _check_band_width(
