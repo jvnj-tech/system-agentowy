@@ -588,7 +588,11 @@ def _qualify(args, settings) -> None:
     tickers = [t.upper() for t in (args.spolki or DEFAULT_TICKERS)]
     for spec in args.modele or configured_specs(settings):
         print(f"{spec}: test na {', '.join(tickers)}...", flush=True)
-        result = qualify(spec, settings, tickers)
+        try:
+            result = qualify(spec, settings, tickers)
+        except Exception as exc:  # noqa: BLE001
+            # Błąd jednego modelu (np. awaria serwera) nie przerywa testu pozostałych.
+            result = {"zaliczony": None, "przerwany": f"błąd: {str(exc)[:200]}"}
         save_result(settings.results_dir, spec, result)
         if result["zaliczony"] is None:
             print(f"  przerwany ({result['przerwany']}); powtórz test później", flush=True)

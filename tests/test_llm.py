@@ -74,6 +74,10 @@ def test_limit_messages():
     assert limit_kind(RuntimeError(DAILY)) == "day"
     assert limit_kind(RuntimeError(MINUTE)) == "minute"
     assert limit_kind(RuntimeError("503 UNAVAILABLE: high demand")) == "overloaded"
+    assert limit_kind(RuntimeError("504 DEADLINE_EXCEEDED")) == "overloaded"
+    assert limit_kind(RuntimeError("Server disconnected without sending a response.")) == (
+        "overloaded"
+    )
     assert limit_kind(ValueError("zły argument")) is None
     assert retry_after(RuntimeError(DAILY)) == pytest.approx(484.704)
     assert retry_after(RuntimeError("{'retryDelay': '37s'}")) == 37

@@ -44,7 +44,8 @@ OVERLOAD_WAITS, OVERLOAD_WAIT_S = 2, 15
 DEFAULT_BLOCK_S = {"day": 3600, "overloaded": 300, "minute": 60, "too_large": 6 * 3600}
 
 LIMIT_PATTERNS = re.compile(
-    r"429|rate.?limit|RESOURCE_EXHAUSTED|quota|50[03]|UNAVAILABLE|INTERNAL|overloaded"
+    r"429|rate.?limit|RESOURCE_EXHAUSTED|quota|50[034]|UNAVAILABLE|INTERNAL|overloaded"
+    r"|DEADLINE_EXCEEDED|timed? ?out|Server disconnected|Connection (?:reset|aborted)"
     r"|high demand",
     re.IGNORECASE,
 )
@@ -78,7 +79,12 @@ def limit_kind(error: Exception) -> str | None:
         return None
     if re.search(r"too large|exceed the enforced limit", text, re.IGNORECASE):
         return "too_large"
-    if re.search(r"50[03]|UNAVAILABLE|INTERNAL|overloaded|high demand", text, re.IGNORECASE):
+    if re.search(
+        r"50[034]|UNAVAILABLE|INTERNAL|overloaded|high demand|DEADLINE|timed? ?out|disconnected"
+        r"|Connection",
+        text,
+        re.IGNORECASE,
+    ):
         return "overloaded"
     if re.search(r"per day|TPD|RPD|daily|PerDay", text, re.IGNORECASE):
         return "day"
