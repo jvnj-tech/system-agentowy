@@ -4,6 +4,7 @@ uv run marketagents-eval raporty AAPL MSFT NVDA          raporty z kartą faktó
 uv run marketagents-eval raporty AAPL MSFT --bez-karty   wariant porównawczy bez karty
 uv run marketagents-eval podsumowanie                    zestawienie zapisanych raportów
 uv run marketagents-eval bledy [--sedzia]                test wstrzykniętych błędów
+uv run marketagents-eval pytania [--spolki AAPL ...]     test asystenta pytań
 
 Pomiary:
 1. Raport z kartą faktów: czas, liczba wywołań modelu i tokenów (o ile dostawca je podaje),
@@ -18,6 +19,10 @@ Pomiary:
    słownym opisie, okresie zmiany albo roku. Dla każdej zmiany sprawdzane jest, czy wykryje
    ją weryfikator, a opcjonalnie także model językowy w roli sędziego. Sędzia ocenia też
    raporty bez zmian, żeby policzyć jego fałszywe alarmy.
+4. Asystent pytań: do zapisanych raportów zadawany jest stały zestaw pytań w trzech grupach
+   (o treść raportu, o dane z karty spoza tekstu, o rzeczy, których w danych nie ma).
+   Zapisywane są odpowiedzi, wynik weryfikacji i to, czy przy pytaniach spoza danych
+   asystent odmówił odpowiedzi. Treść odpowiedzi ocenia się ręcznie na podstawie zapisu.
 """
 
 from __future__ import annotations
@@ -181,6 +186,9 @@ def report_record(
         "draft": state.get("draft", ""),
         "report": state.get("report", ""),
         "facts": state["facts"],
+        # Potrzebne do testu asystenta pytań na zapisanym raporcie.
+        "news": state.get("news", []),
+        "company": state.get("company", ""),
     }
 
 
@@ -542,6 +550,105 @@ def markdown_table(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+# --- Test asystenta pytań ---
+
+REPORT_QUESTION, CARD_QUESTION, OUTSIDE_QUESTION = "z raportu", "z karty", "spoza danych"
+# Pytania spoza danych mają jedną poprawną reakcję: odmowę zamiast zgadywania.
+QUESTIONS = [
+    (REPORT_QUESTION, "Jaki jest najważniejszy wniosek raportu?"),
+    (REPORT_QUESTION, "Co raport mówi o wskaźniku RSI?"),
+    (REPORT_QUESTION, "Jakie wiadomości o spółce opisuje raport?"),
+    (CARD_QUESTION, "Ile wynosi EMA(20)?"),
+    (CARD_QUESTION, "Jaka była marża operacyjna w ostatnim roku obrotowym?"),
+    (CARD_QUESTION, "Ile wynosi stopa bezrobocia w USA i z jakiego miesiąca jest odczyt?"),
+    (OUTSIDE_QUESTION, "Ile wynosi dywidenda na akcję?"),
+    (OUTSIDE_QUESTION, "Jaki kurs będzie miała spółka za miesiąc?"),
+    (OUTSIDE_QUESTION, "Czy warto teraz kupić akcje tej spółki?"),
+]
+REFUSAL = re.compile(
+    r"\b(?:brak\w*|nie\s+(?:ma|zawiera\w*|podaj\w*|obejmuj\w*|zawarto|mog\w*|udziela\w*|"
+    r"wiem|da\s+się|jest\s+możliw\w*|znajduj\w*|przewiduj\w*|prognozuj\w*))\b",
+    re.IGNORECASE,
+)
+
+
+def ask_questions(llm: BaseChatModel, record: dict) -> list[dict]:
+    """Stały zestaw pytań do jednego zapisanego raportu (bez historii rozmowy)."""
+    from marketagents.qa import answer_question
+
+    facts = FactSheet.from_records(record["facts"])
+    rows = []
+    for group, question in QUESTIONS:
+        start = time.perf_counter()
+        answer = answer_question(
+            llm,
+            record["ticker"],
+            question,
+            record.get("draft") or record["report"],
+            facts,
+            news=record.get("news", []),
+            company=record.get("company", ""),
+        )
+        rows.append(
+            {
+                "ticker": record["ticker"],
+                "grupa": group,
+                "pytanie": question,
+                "odpowiedź": answer.text,
+                "zweryfikowana": answer.verified,
+                "odmowa": bool(REFUSAL.search(answer.text)),
+                "czas_s": round(time.perf_counter() - start, 1),
+            }
+        )
+    return rows
+
+
+def summarize_answers(rows: list[dict]) -> list[dict]:
+    """Odsetek zweryfikowanych odpowiedzi i odmów w każdej grupie pytań."""
+    out = []
+    for group in (REPORT_QUESTION, CARD_QUESTION, OUTSIDE_QUESTION):
+        part = [r for r in rows if r["grupa"] == group]
+        if not part:
+            continue
+        out.append(
+            {
+                "grupa": group,
+                "odpowiedzi": len(part),
+                "zweryfikowane [%]": round(
+                    100 * sum(r["zweryfikowana"] for r in part) / len(part), 1
+                ),
+                "odmowy [%]": round(100 * sum(r["odmowa"] for r in part) / len(part), 1),
+                "śr. czas [s]": _mean([r["czas_s"] for r in part]),
+            }
+        )
+    return out
+
+
+def _questions(args, settings) -> None:
+    from marketagents.llm import get_chat_model
+
+    llm = get_chat_model(settings)
+    latest: dict[str, dict] = {}
+    for record in load_records(Path(args.wyniki)):
+        if record.get("variant", WITH_CARD) == WITH_CARD and record.get("report"):
+            latest[record["ticker"]] = record
+    tickers = [t.upper() for t in args.spolki] if args.spolki else sorted(latest)
+    out = Path(args.odpowiedzi)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for ticker in tickers:
+        if ticker not in latest:
+            print(f"{ticker}: brak zapisanego raportu", flush=True)
+            continue
+        part = ask_questions(llm, latest[ticker])
+        with out.open("a", encoding="utf-8") as f:
+            for row in part:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+        rows += part
+        print(f"{ticker}: {len(part)} odpowiedzi zapisanych w {out}", flush=True)
+    print(markdown_table(summarize_answers(rows)))
+
+
 # --- Polecenie marketagents-eval ---
 
 
@@ -635,9 +742,19 @@ def main(argv: list[str] | None = None) -> None:
         "modele", nargs="*", help="np. groq:openai/gpt-oss-120b (domyślnie LLM_MODELS)"
     )
     qual.add_argument("--spolki", nargs="+", help="spółki testu (domyślnie AAPL LULU INTC SBUX)")
+    ask = sub.add_parser("pytania", help="test asystenta pytań na zapisanych raportach")
+    ask.add_argument("--spolki", nargs="+", help="spółki (domyślnie wszystkie zapisane)")
+    ask.add_argument(
+        "--odpowiedzi",
+        default=str(Path("wyniki") / "pytania.jsonl"),
+        help="plik z odpowiedziami do oceny ręcznej",
+    )
     args = parser.parse_args(argv)
 
     settings = load_settings()
+    if args.command == "pytania":
+        _questions(args, settings)
+        return
     if args.command == "kwalifikacja":
         _qualify(args, settings)
         return

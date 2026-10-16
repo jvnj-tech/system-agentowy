@@ -7,10 +7,13 @@ from langchain_core.language_models.fake_chat_models import (
 from langchain_core.messages import AIMessage
 
 from marketagents.evaluation import (
+    OUTSIDE_QUESTION,
+    QUESTIONS,
     WITH_CARD,
     WITHOUT_CARD,
     UsageCounter,
     append_record,
+    ask_questions,
     inject_errors,
     injection_test,
     load_records,
@@ -18,6 +21,7 @@ from marketagents.evaluation import (
     markdown_table,
     report_record,
     report_without_fact_card,
+    summarize_answers,
     summarize_injections,
     summarize_reports,
     unsupported_numbers,
@@ -217,3 +221,43 @@ def test_flipped_rsi_zone_contradicts_the_data():
     word = next(m for m in inject_errors(text, SHEET, random.Random(0)) if m.kind == "kierunek")
     assert (word.before, word.after) == ("neutralną", "wykupienia")
     assert not verify(word.text, SHEET).ok
+
+
+def test_questions_are_asked_about_saved_report_and_refusals_counted():
+    record = {
+        "ticker": "TEST",
+        "report": "## Podsumowanie\nKurs jest powyżej SMA(200).",
+        "facts": SHEET.to_records(),
+        "news": [
+            {"source": "Reuters", "published": "2026-10-14 08:00", "headline": "Nowy produkt"}
+        ],
+        "company": "Test Inc.",
+    }
+    answers = [
+        "Według [1] spółka pokazała nowy produkt."
+        if group != OUTSIDE_QUESTION
+        else "Raport nie zawiera tej informacji."
+        for group, _ in QUESTIONS
+    ]
+    llm = FakeListChatModel(responses=answers)
+    rows = ask_questions(llm, record)
+    assert len(rows) == len(QUESTIONS)
+    assert all(r["zweryfikowana"] for r in rows)
+    summary = {r["grupa"]: r for r in summarize_answers(rows)}
+    assert summary[OUTSIDE_QUESTION]["odmowy [%]"] == 100.0
+    assert summary["z raportu"]["odmowy [%]"] == 0.0
+    assert "Źródła wiadomości" in rows[0]["odpowiedź"]
+
+
+def test_question_command_uses_latest_saved_report(tmp_path, monkeypatch):
+    results = tmp_path / "raporty.jsonl"
+    record = {"ticker": "TEST", "variant": WITH_CARD, "report": "Raport.", "facts": []}
+    append_record(record | {"report": "Stary raport."}, results)
+    append_record(record, results)
+    seen = []
+    monkeypatch.setattr(
+        "marketagents.evaluation.ask_questions", lambda llm, r: seen.append(r["report"]) or []
+    )
+    monkeypatch.setattr("marketagents.llm.get_chat_model", lambda settings: None)
+    main(["--wyniki", str(results), "pytania", "--odpowiedzi", str(tmp_path / "p.jsonl")])
+    assert seen == ["Raport."]

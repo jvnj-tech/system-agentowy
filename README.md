@@ -166,12 +166,17 @@ uv run marketagents-eval raporty AAPL MSFT NVDA          # raporty z kartą fakt
 uv run marketagents-eval raporty AAPL MSFT --bez-karty   # model sam przepisuje liczby
 uv run marketagents-eval podsumowanie                    # tabela wyników
 uv run marketagents-eval bledy --sedzia --csv bledy.csv  # wstrzyknięte błędy
+uv run marketagents-eval pytania --spolki AAPL NVDA      # test asystenta pytań
 ```
 
 Wariant bez karty faktów pokazuje, ile liczb spoza danych pojawia się, gdy model sam
 przepisuje wartości i nikt ich nie sprawdza. Test wstrzykniętych błędów zmienia
 w zweryfikowanych raportach po jednej liczbie, opisie, okresie lub roku i sprawdza,
 ile zmian wykrywa weryfikator, a ile model językowy w roli sędziego (opcja `--sedzia`).
+Test asystenta zadaje do ostatniego zapisanego raportu każdej spółki stały zestaw pytań:
+o treść raportu, o dane z karty spoza tekstu i o rzeczy, których w danych nie ma (tu
+poprawną odpowiedzią jest odmowa). Odpowiedzi trafiają do `wyniki/pytania.jsonl` do oceny
+ręcznej, a tabela podaje odsetek zweryfikowanych odpowiedzi i odmów w każdej grupie.
 
 ## Testy
 
