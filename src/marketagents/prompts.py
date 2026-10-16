@@ -78,13 +78,21 @@ Analizy cząstkowe:
 {analyses}
 """
 
+# Poprawka raportu nie zawiera już analiz cząstkowych (są w poprzedniej wersji raportu),
+# żeby polecenie zmieściło się w limicie tokenów na minutę darmowych planów.
 EDITOR_FIX = """\
-Weryfikator znalazł w poprzedniej wersji raportu następujące problemy:
+Jesteś redaktorem raportów analitycznych. Weryfikator znalazł w raporcie o spółce {ticker}
+następujące problemy:
 {issues}
 
-Popraw raport tak, aby je usunąć, zachowując resztę treści. Zwróć pełny poprawiony raport.
+Popraw raport tak, aby je usunąć, zachowując resztę treści, kolejność sekcji i numery źródeł
+wiadomości w nawiasach kwadratowych. Zwróć pełny poprawiony raport.
 
-Poprzednia wersja:
+{rules}
+Karta faktów:
+{facts}
+
+Raport do poprawy:
 {draft}
 """
 

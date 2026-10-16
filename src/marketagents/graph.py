@@ -139,6 +139,16 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
 
     def editor(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
+        if state.get("issues"):
+            prompt = prompts.EDITOR_FIX.format(
+                ticker=state["ticker"],
+                issues="\n".join(f"- {i}" for i in state["issues"]),
+                rules=prompts.PLACEHOLDER_RULES,
+                facts=prompt_table(facts),
+                draft=state["draft"],
+            )
+            # Model bez treści w odpowiedzi nie może skasować raportu: zostaje poprzednia wersja.
+            return {"draft": ask(prompt) or state["draft"]}
         analyses = state.get("analyses", {})
         prompt = prompts.EDITOR.format(
             ticker=state["ticker"],
@@ -146,10 +156,6 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             facts=prompt_table(facts),
             analyses="\n\n".join(f"### Analiza: {k}\n{v}" for k, v in analyses.items()),
         )
-        if state.get("issues"):
-            prompt += "\n\n" + prompts.EDITOR_FIX.format(
-                issues="\n".join(f"- {i}" for i in state["issues"]), draft=state["draft"]
-            )
         return {"draft": ask(prompt)}
 
     def verifier(state: ReportState) -> ReportState:
