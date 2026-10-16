@@ -53,3 +53,36 @@ def test_history_is_limited():
     prompt = llm.prompts[0]
     assert "Pytanie: pytanie 0\n" not in prompt
     assert f"Pytanie: pytanie {MAX_HISTORY + 1}\nOdpowiedź: odpowiedź {MAX_HISTORY + 1}" in prompt
+
+
+NEWS = [
+    {
+        "published": "2026-10-14 08:00",
+        "source": "Yahoo",
+        "headline": "Nvidia invests in Doctolib",
+        "summary": "",
+        "url": "https://x.example/1",
+    }
+]
+
+
+def test_answer_cites_news_and_names_must_come_from_the_source():
+    llm = RecordingLLM(
+        responses=[
+            "Spółka zainwestowała w Doctolib i Mistral [1].",
+            "Spółka zainwestowała w Doctolib [1].",
+        ],
+        prompts=[],
+    )
+    answer = answer_question(llm, "NVDA", "Co nowego?", REPORT, FACTS, news=NEWS)
+    assert "[1] 2026-10-14, Yahoo: Nvidia invests in Doctolib." in llm.prompts[0]
+    assert "„Mistral”" in llm.prompts[1]
+    assert answer.verified
+    assert "Doctolib [[1]](https://x.example/1)." in answer.text
+    assert "1. [Yahoo, 2026-10-14: Nvidia invests in Doctolib](https://x.example/1)" in answer.text
+
+
+def test_forecast_in_answer_is_marked_when_not_fixed():
+    answer, _ = ask(["Kurs ma przestrzeń do dalszych wzrostów."] * 2)
+    assert not answer.verified
+    assert "[niezweryfikowana interpretacja]" in answer.text

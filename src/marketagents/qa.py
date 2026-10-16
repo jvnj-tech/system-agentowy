@@ -1,8 +1,10 @@
 """Asystent odpowiadający na pytania o wygenerowany raport.
 
 Obowiązują go te same zasady co autorów raportu: liczby wstawia jako odwołania do karty
-faktów, a odpowiedź przechodzi przez weryfikator. Jeśli zawiera liczbę spoza karty,
-model dostaje jedną szansę na poprawkę, a potem niezweryfikowane liczby są oznaczane.
+faktów, informacje z wiadomości opatruje numerem źródła [n], nie formułuje prognoz,
+a odpowiedź przechodzi przez weryfikator (liczby, opisy, prognozy, zgodność nazw
+z cytowaną wiadomością). Przy błędach model dostaje jedną szansę na poprawkę, a potem
+to, czego nie udało się potwierdzić, jest oznaczane.
 """
 
 from __future__ import annotations
@@ -13,9 +15,10 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from marketagents import prompts
 from marketagents.facts import FactSheet
+from marketagents.grounding import check_news_content
 from marketagents.interpretation import mark_sentences, prompt_table
 from marketagents.llm import message_text
-from marketagents.verifier import mark_unverified, render, verify
+from marketagents.verifier import CITATION, cite, mark_unverified, render, verify
 
 MAX_FIXES = 1
 MAX_HISTORY = 6
@@ -41,25 +44,39 @@ def answer_question(
     report: str,
     facts: FactSheet,
     history: list[tuple[str, str]] | None = None,
+    news: list[dict] | None = None,
+    company: str = "",
 ) -> Answer:
-    """Odpowiedź na pytanie; history to wcześniejsze pary (pytanie, odpowiedź)."""
+    """Odpowiedź na pytanie; history to wcześniejsze pary (pytanie, odpowiedź).
+
+    report to tekst raportu z odwołaniami {{id}} i numerami wiadomości [n] (szkic przed
+    podstawieniem wartości), news to ta sama ponumerowana lista wiadomości co w raporcie.
+    """
+    from marketagents.graph import _format_news
+
+    news = news or []
     prompt = prompts.QA.format(
         ticker=ticker,
         rules=prompts.PLACEHOLDER_RULES,
         facts=prompt_table(facts),
         report=report,
+        news=_format_news(news) or "(brak wiadomości)",
         history=_format_history(history or []),
         question=question,
     )
     draft = message_text(llm.invoke(prompt))
     for attempt in range(MAX_FIXES + 1):
         result = verify(draft, facts)
-        if result.ok:
-            return Answer(result.rendered, verified=True)
+        content = check_news_content(draft, news, (ticker, company))
+        bad = sorted({n for n in CITATION.findall(draft) if not 1 <= int(n) <= len(news)})
+        issues = result.issues() + [c.message for c in content]
+        issues += [f"Numer [{n}] nie odpowiada żadnej wiadomości" for n in bad]
+        if not issues:
+            return Answer(cite(result.rendered, news), verified=True)
         if attempt == MAX_FIXES:
             break
-        issues = "\n".join(f"- {i}" for i in result.issues())
-        fix = prompts.QA_FIX.format(issues=issues, draft=draft)
+        fix = prompts.QA_FIX.format(issues="\n".join(f"- {i}" for i in issues), draft=draft)
         draft = message_text(llm.invoke(prompt + "\n\n" + fix))
-    marked = render(mark_sentences(draft, result.flagged_sentences), facts)
-    return Answer(mark_unverified(marked, result.to_mark), verified=False)
+    flagged = result.flagged_sentences + [c.sentence for c in content]
+    marked = render(mark_unverified(mark_sentences(draft, flagged), result.to_mark), facts)
+    return Answer(cite(marked, news), verified=False)

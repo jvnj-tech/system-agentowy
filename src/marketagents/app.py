@@ -339,7 +339,9 @@ def show_chat(ticker: str, result: dict | None) -> None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if message.get("verified") is False:
-                st.caption("Odpowiedź zawiera niezweryfikowane liczby.")
+                st.caption(
+                    "Części odpowiedzi nie udało się zweryfikować; jest oznaczona w tekście."
+                )
 
     question = st.chat_input(f"Zadaj pytanie o raport {ticker}")
     if not question:
@@ -353,9 +355,11 @@ def show_chat(ticker: str, result: dict | None) -> None:
                 chat_model(),
                 ticker,
                 question,
-                result["report"],
+                result.get("draft") or result["report"],
                 FactSheet.from_records(result["facts"]),
                 history,
+                news=result.get("news", []),
+                company=result.get("company", ""),
             )
         except Exception as exc:  # noqa: BLE001
             st.error(f"Nie udało się uzyskać odpowiedzi: {describe_error(exc)}")

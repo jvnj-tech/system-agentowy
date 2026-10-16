@@ -106,8 +106,9 @@ dane -> karta faktów -+--> analityk fundamentalny --+-> redaktor -> weryfikator
 ```
 
 Analitycy działają równolegle i każdy dostaje tylko fakty ze swojej dziedziny.
-Szósty agent, asystent pytań, odpowiada na pytania o gotowy raport na podstawie raportu
-i karty faktów, z tymi samymi zasadami odwołań i weryfikacją liczb.
+Szósty agent, asystent pytań, odpowiada na pytania o gotowy raport na podstawie raportu,
+karty faktów i listy wiadomości, z tymi samymi zasadami i tą samą weryfikacją: liczby jako
+odwołania, numery źródeł przy informacjach z wiadomości, bez prognoz.
 
 Liczby liczy kod, a model językowy tylko je interpretuje. Agenci nie wpisują wartości
 do tekstu, lecz odwołania do karty faktów w postaci `{{rsi_14}}`, które są podstawiane
@@ -127,8 +128,12 @@ przy składaniu raportu. Weryfikator sprawdza, czy:
   szerokość wstęg oraz to, czy odległość od długiej średniej jest duża na tle 3 lat,
 - zmiana w czasie („rośnie”, „utrzymuje się”, „kontynuacja”) jest opisana tylko przy
   wielkości, dla której karta zawiera fakt o zmianie (np. zmianę stopy Fed w ciągu 12 miesięcy),
-- każde zdanie w sekcji wiadomości wskazuje numer wiadomości z listy, np. [2]; w gotowym
-  raporcie numer zamienia się w odnośnik do artykułu.
+- każde zdanie w sekcji wiadomości wskazuje numer wiadomości z listy, np. [2], a wymienione
+  w nim nazwy firm, osób i instytucji występują w cytowanej wiadomości (inaczej to treść
+  dopisana przez model albo pomylone źródło); w gotowym raporcie numery są odnośnikami,
+  a pod sekcją wiadomości jest lista źródeł,
+- tekst nie zawiera prognoz ani wniosków o przyszłym kursie („dalszy wzrost”, „ryzyko
+  korekty”), chyba że jest to opinia przypisana autorowi wiadomości.
 
 Karta faktów, którą dostaje model, ma kolumnę „ocena” z oceną słowną wyznaczoną przez kod
 (kierunek zmiany, strefa RSI, położenie kursu, układ średnich, szerokość wstęg).
@@ -183,6 +188,7 @@ src/marketagents/
   cli.py                 polecenia: pobieranie danych i generowanie raportu
   facts.py               karta faktów
   verifier.py            weryfikacja liczb, lat i numerów źródeł w raporcie
+  grounding.py           zgodność zdań o wiadomościach ze źródłem, prognozy bez podstaw
   interpretation.py      zgodność opisu z liczbami i ocenami kodu
   coverage.py            opis zakresu danych dopisywany do raportu
   evaluation.py          ewaluacja: wyniki raportów, wariant bez karty, wstrzyknięte błędy
