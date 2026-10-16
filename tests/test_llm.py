@@ -171,3 +171,28 @@ def test_groq_model_reserves_bounded_answer_length(monkeypatch, tmp_path):
     monkeypatch.setenv("GROQ_API_KEY", "test")
     llm = get_chat_model(replace(SETTINGS, llm_provider="groq", results_dir=tmp_path))
     assert llm.models[0].max_tokens == llm_module.GROQ_MAX_TOKENS
+
+
+def test_qualification_resumes_after_daily_limit(monkeypatch):
+    from marketagents import qualification
+
+    calls = []
+
+    def fake_report(graph, ticker, *args, **kwargs):
+        calls.append(ticker)
+        return {
+            "draft": "## Podsumowanie\nA.\n## Ograniczenia analizy\nB.",
+            "analyses": {"techniczna": "x"},
+            "attempts": 1,
+        }
+
+    monkeypatch.setattr("marketagents.graph.run_report", fake_report)
+    monkeypatch.setattr(qualification, "test_data", lambda s, t: None)
+    monkeypatch.setattr(qualification, "_expected_analysts", lambda data: 1)
+    monkeypatch.setattr("marketagents.graph.build_graph", lambda model, load: None)
+    monkeypatch.setattr("marketagents.llm.make_model", lambda spec, settings: None)
+    monkeypatch.setattr("marketagents.llm.ModelPool", lambda **kw: None)
+    done = {"AAPL": {"zaliczony": True}, "LULU": {"zaliczony": True}}
+    result = qualification.qualify("groq:x", SETTINGS, ("AAPL", "LULU", "INTC"), done)
+    assert calls == ["INTC"]
+    assert result["zaliczony"] and set(result["spółki"]) == {"AAPL", "LULU", "INTC"}

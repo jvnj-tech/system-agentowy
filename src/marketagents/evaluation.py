@@ -583,13 +583,15 @@ def _generate(args, settings, cache) -> None:
 
 def _qualify(args, settings) -> None:
     from marketagents.llm import configured_specs
-    from marketagents.qualification import DEFAULT_TICKERS, qualify, save_result
+    from marketagents.qualification import DEFAULT_TICKERS, load_results, qualify, save_result
 
     tickers = [t.upper() for t in (args.spolki or DEFAULT_TICKERS)]
     for spec in args.modele or configured_specs(settings):
         print(f"{spec}: test na {', '.join(tickers)}...", flush=True)
         try:
-            result = qualify(spec, settings, tickers)
+            previous = load_results(settings.results_dir).get(spec, {})
+            done = previous.get("spółki") if previous.get("zaliczony") is None else None
+            result = qualify(spec, settings, tickers, done)
         except Exception as exc:  # noqa: BLE001
             # Błąd jednego modelu (np. awaria serwera) nie przerywa testu pozostałych.
             result = {"zaliczony": None, "przerwany": f"błąd: {str(exc)[:200]}"}

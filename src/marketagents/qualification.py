@@ -91,15 +91,21 @@ def test_data(settings, ticker: str):
     return data
 
 
-def qualify(spec: str, settings, tickers=DEFAULT_TICKERS) -> dict:
-    """Uruchamia raporty dla jednego modelu (bez puli) na zapisanych danych."""
+def qualify(spec: str, settings, tickers=DEFAULT_TICKERS, done: dict | None = None) -> dict:
+    """Uruchamia raporty dla jednego modelu (bez puli) na zapisanych danych.
+
+    done: wyniki spółek z wcześniejszego, przerwanego testu. Darmowe plany pozwalają
+    na kilka raportów dziennie, więc test jednego modelu może trwać kilka dni: przy
+    wyczerpaniu limitu zapisane zostają ukończone spółki, a kolejne uruchomienie
+    zaczyna od brakujących.
+    """
     from marketagents.graph import build_graph, run_report
     from marketagents.llm import AllModelsExhausted, ModelPool, make_model
 
     # Pula z jednym modelem: limit minutowy jest odczekiwany, a dobowy przerywa test.
     model = ModelPool(specs=[spec], models=[make_model(spec, settings)])
-    results = {}
-    for ticker in tickers:
+    results = {t: r for t, r in (done or {}).items() if t in tickers}
+    for ticker in [t for t in tickers if t not in results]:
         data = test_data(settings, ticker)
         graph = build_graph(model, lambda t, data=data: data)
         start = time.perf_counter()
@@ -110,11 +116,15 @@ def qualify(spec: str, settings, tickers=DEFAULT_TICKERS) -> dict:
                 # Plan dostępu nie pozwala na odpowiedź o długości raportu: model odpada.
                 reason = "odpowiedź przekracza limit planu (np. tokeny wyjściowe na minutę)"
                 return {"zaliczony": False, "powód": f"{ticker}: {reason}"}
-            # Chwilowy limit to nie wada modelu: test trzeba powtórzyć później.
-            return {"zaliczony": None, "przerwany": f"{ticker}: {exc}"}
+            # Chwilowy limit to nie wada modelu: test trzeba dokończyć później.
+            return {"zaliczony": None, "przerwany": f"{ticker}: {exc}", "spółki": results}
         results[ticker] = evaluate_state(
             state, _expected_analysts(data), time.perf_counter() - start
         )
+        if not results[ticker]["zaliczony"]:
+            # Niezaliczona spółka rozstrzyga test: pozostałych nie trzeba sprawdzać,
+            # co oszczędza limit darmowego planu.
+            break
     return {
         "zaliczony": all(r["zaliczony"] for r in results.values()),
         "data": datetime.now().isoformat(timespec="seconds"),
