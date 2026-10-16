@@ -127,6 +127,8 @@ opisz po polsku najważniejsze wątki z ostatnich dni i ich możliwy wpływ na s
   np. [2] albo [1][4]. Nie podawaj informacji, której nie ma w żadnej wiadomości.
 - Opinie, oceny i prognozy autorów artykułów przypisuj im („według [3]…”), a nie podawaj
   ich jako faktów.
+- Wymieniaj tylko te nazwy firm, osób, produktów i instytucji, które występują w cytowanej
+  wiadomości, i nie przypisuj wiadomości innemu źródłu niż podane na liście.
 - Karta faktów zawiera zmiany kursu spółki. Jeśli artykuł opisuje zachowanie kursu inaczej
   niż karta (np. pisze o braku wzrostów, gdy karta pokazuje wzrost), zaznacz tę rozbieżność
   zamiast powtarzać opinię.

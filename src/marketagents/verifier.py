@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from html import escape
 
 from marketagents.facts import Fact, FactSheet
+from marketagents.grounding import check_forecasts, check_news_content
 from marketagents.interpretation import InterpretationIssue, check_interpretations
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
@@ -214,9 +215,15 @@ def verify(
     allowed: frozenset[int] = DEFAULT_ALLOWED,
     news_count: int | None = None,
     whole_text_is_news: bool = False,
+    news: list[dict] | None = None,
+    names: tuple[str, ...] = (),
 ) -> Verification:
     """news_count: liczba wiadomości na liście; gdy podana, sprawdzane są numery źródeł
-    w sekcji wiadomości raportu albo (whole_text_is_news) w całym tekście analizy newsów."""
+    w sekcji wiadomości raportu albo (whole_text_is_news) w całym tekście analizy newsów.
+    news: lista wiadomości; zdania z numerem źródła mogą wymieniać tylko nazwy z cytowanych
+    wiadomości lub z nazw spółki (names). Prognozy bez podstaw są sprawdzane zawsze."""
+    if news is not None and news_count is None:
+        news_count = len(news)
     allowed = allowed | indicator_periods(facts) | label_numbers(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
     years = fact_years(facts)
@@ -248,17 +255,25 @@ def verify(
 
     uncited: list[str] = []
     bad: list[str] = []
+    content = check_forecasts(text)
     if news_count is not None:
         part = text if whole_text_is_news else news_part(text)
         if part.strip():
             uncited, bad = check_citations(part, news_count)
+            if news:
+                content += check_news_content(part, news, names)
+    interpretations = check_interpretations(text, facts)
+    flagged = {i.sentence for i in interpretations}
+    interpretations += [
+        InterpretationIssue(c.sentence, c.message) for c in content if c.sentence not in flagged
+    ]
 
     return Verification(
         rendered=render(text, facts),
         unknown_ids=unknown,
         unverified_numbers=unverified,
         wrong_years=wrong_years,
-        interpretations=check_interpretations(text, facts),
+        interpretations=interpretations,
         checked_numbers=checked,
         suggestions=suggestions,
         repeated=repeated,

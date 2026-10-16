@@ -43,10 +43,13 @@ NEWS_CONTEXT = ("change_1m", "change_3m", "change_1y")
 class MarketData:
     facts: list[Fact]
     news: list[dict] = field(default_factory=list)
+    # Nazwa spółki: jej wymienienie w zdaniu o wiadomościach nie wymaga potwierdzenia w źródle.
+    company: str | None = None
 
 
 class ReportState(TypedDict, total=False):
     ticker: str
+    company: str
     facts: list[dict]
     news: list[dict]
     analyses: Annotated[dict[str, str], operator.or_]
@@ -98,6 +101,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
         return {
             "facts": FactSheet(data.facts).to_records(),
             "news": data.news[:MAX_NEWS],
+            "company": data.company or "",
             "attempts": 0,
         }
 
@@ -124,7 +128,14 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
                 return {}
             fixes = 0
             while fixes < ANALYST_FIXES:
-                result = verify(text, facts, news_count=news_count, whole_text_is_news=True)
+                result = verify(
+                    text,
+                    facts,
+                    news_count=news_count,
+                    whole_text_is_news=True,
+                    news=state.get("news", []) if needs_news else None,
+                    names=(state["ticker"], state.get("company", "")),
+                )
                 if result.ok:
                     break
                 issues = "\n".join(f"- {i}" for i in result.issues())
@@ -161,8 +172,12 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
     def verifier(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
         has_news = bool(state.get("analyses", {}).get("wiadomości"))
-        news_count = len(state.get("news", [])) if has_news else None
-        result = verify(state["draft"], facts, news_count=news_count)
+        result = verify(
+            state["draft"],
+            facts,
+            news=state.get("news", []) if has_news else None,
+            names=(state["ticker"], state.get("company", "")),
+        )
         issues = result.issues()
         if LAST_SECTION not in state["draft"]:
             issues.append(f"Raport jest niekompletny: brak sekcji „{LAST_SECTION}”")

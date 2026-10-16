@@ -84,6 +84,7 @@ def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
         news = get_news(cache, ticker, settings.finnhub_api_key)
         news["published"] = news["published"].dt.strftime("%Y-%m-%d %H:%M")
         name = company_name(ticker, cache) or company_title(cache, ticker, settings.sec_user_agent)
+        data.company = name
         data.news = relevant_news(news.to_dict("records"), ticker, name)
     except Exception as exc:  # noqa: BLE001
         print(f"Pomijam newsy: {exc}")
