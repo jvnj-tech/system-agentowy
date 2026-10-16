@@ -161,3 +161,9 @@ def test_request_too_large_for_the_plan_is_a_separate_kind():
     with pytest.raises(AllModelsExhausted) as info:
         models.invoke("pytanie")
     assert info.value.kinds == ["too_large"]
+
+
+def test_groq_model_reserves_bounded_answer_length(monkeypatch, tmp_path):
+    monkeypatch.setenv("GROQ_API_KEY", "test")
+    llm = get_chat_model(replace(SETTINGS, llm_provider="groq", results_dir=tmp_path))
+    assert llm.models[0].max_tokens == llm_module.GROQ_MAX_TOKENS

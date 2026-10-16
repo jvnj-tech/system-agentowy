@@ -35,6 +35,8 @@ log = logging.getLogger(__name__)
 # jeden model), a limit dobowy i przeciążenie serwera przełączają na następny model.
 MAX_RETRIES = 2
 MINUTE_WAITS, MAX_WAIT_S = 3, 60
+# Najdłuższa odpowiedź modelu w Groq (z tokenami rozumowania); raport ma zwykle ok. 2 tys.
+GROQ_MAX_TOKENS = 3200
 OVERLOAD_WAITS, OVERLOAD_WAIT_S = 2, 15
 # Czas wyłączenia modelu, gdy serwer nie podał, kiedy limit się odnowi.
 # „too_large”: zapytanie przekracza limit planu niezależnie od czasu (np. limit odpowiedzi
@@ -110,6 +112,10 @@ def make_model(spec: str, settings: Settings, temperature: float = 0.2) -> BaseC
             rate_limiter=rate_limiter,
             timeout=120,
             max_retries=MAX_RETRIES,
+            # Groq liczy do limitu tokenów na minutę polecenie i zarezerwowaną długość
+            # odpowiedzi; bez tego limitu polecenie redaktora (ok. 4 tys. tokenów) z domyślną
+            # rezerwą przekraczało 8 tys. tokenów darmowego planu.
+            max_tokens=GROQ_MAX_TOKENS,
         )
     from langchain_google_genai import ChatGoogleGenerativeAI
 
