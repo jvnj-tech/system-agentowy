@@ -15,6 +15,7 @@ w sekcji ograniczeń dopisuje kod.
 from __future__ import annotations
 
 import operator
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Annotated, TypedDict
@@ -101,6 +102,9 @@ class ReportState(TypedDict, total=False):
     # Model, który napisał raport, i liczba rozpoczęć od nowa po wyczerpaniu limitu.
     model: str
     restarts: int
+    # Sprawdzenie sekcji przez redaktora: czy się odbyło i jakie uwagi zgłosił.
+    reviewed: bool
+    review_issues: list[str]
 
 
 def _format_news(news: list[dict]) -> str:
@@ -120,7 +124,30 @@ EMPTY_REPORT = (
 )
 
 
-def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
+REVIEW_NONE = "BRAK UWAG"
+REVIEW_ITEM = re.compile(r"^\s*[-*\d.)]+\s*(.+)$")
+
+
+def parse_review(text: str) -> list[str]:
+    """Uwagi redaktora: wypunktowane wiersze; „BRAK UWAG” oznacza pustą listę."""
+    if REVIEW_NONE in text.upper() and not REVIEW_ITEM.search(text.split(REVIEW_NONE)[0]):
+        return []
+    return [m.group(1).strip() for line in text.splitlines() if (m := REVIEW_ITEM.match(line))]
+
+
+def _compact_news(news: list[dict]) -> str:
+    """Lista wiadomości do sprawdzenia przez redaktora: nagłówek i początek streszczenia."""
+    return "\n".join(
+        f"[{i}] {n.get('source', '')}: {n.get('headline', '')}. {str(n.get('summary') or '')[:300]}"
+        for i, n in enumerate(news[:MAX_NEWS], start=1)
+    )
+
+
+def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], review: bool = False):
+    """review: po pozytywnej weryfikacji kodem redaktor sprawdza raport sekcja po sekcji
+    (sprzeczności, twierdzenia bez pokrycia w danych, opinie podane jako fakty) i jeden raz
+    poprawia zgłoszone miejsca. To ocena modelu, więc nie zmienia statusu weryfikacji."""
+
     def ask(prompt: str) -> str:
         text = ""
         for _ in range(1 + EMPTY_RETRIES):
@@ -252,10 +279,29 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             "report_html": cite(html, news).rstrip() + note,
         }
 
+    def editor_review(state: ReportState) -> ReportState:
+        facts = FactSheet.from_records(state["facts"])
+        prompt = prompts.EDITOR_REVIEW.format(
+            ticker=state["ticker"],
+            facts=prompt_table(facts),
+            news=_compact_news(state.get("news", [])) or "(brak wiadomości)",
+            draft=state["draft"],
+        )
+        found = parse_review(ask(prompt))
+        if not found:
+            return {"reviewed": True, "review_issues": []}
+        issues = [f"Redaktor (sprawdzenie sekcji): {i}" for i in found]
+        return {"reviewed": True, "review_issues": found, "issues": issues, "verified": False}
+
     def after_verification(state: ReportState) -> str:
-        if state["verified"] or state["attempts"] > MAX_FIXES:
+        if state["verified"] and review and not state.get("reviewed"):
+            return "editor_review"
+        if state["verified"] or state["attempts"] > MAX_FIXES + int(review):
             return "finalize"
         return "editor"
+
+    def after_review(state: ReportState) -> str:
+        return "editor" if state.get("review_issues") else "finalize"
 
     analysts = {
         "technical_analyst": analyst("techniczna", prompts.TECHNICAL_ANALYST, TECHNICAL),
@@ -275,7 +321,11 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
         graph.add_edge("load_data", node_name)
     graph.add_edge(list(analysts), "editor")
     graph.add_edge("editor", "verifier")
-    graph.add_conditional_edges("verifier", after_verification, ["editor", "finalize"])
+    graph.add_node("editor_review", editor_review)
+    graph.add_conditional_edges(
+        "verifier", after_verification, ["editor", "editor_review", "finalize"]
+    )
+    graph.add_conditional_edges("editor_review", after_review, ["editor", "finalize"])
     graph.add_edge("finalize", END)
     return graph.compile()
 

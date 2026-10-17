@@ -172,6 +172,7 @@ def report_record(
         "analyst_fixes": state.get("analyst_fixes", 0),
         "attempts": state.get("attempts"),
         "restarts": state.get("restarts", 0),
+        "review_issues": state.get("review_issues", []),
         "verified": state.get("verified"),
         "issue_counts": state.get("issue_counts", []),
         "unverified": len(state.get("unverified", [])),
@@ -554,7 +555,9 @@ def _generate(args, settings, cache) -> None:
     variant = WITHOUT_CARD if args.bez_karty else WITH_CARD
 
     def make_graph(model):
-        return build_graph(model, lambda t: load_market_data(settings, cache, t))
+        return build_graph(
+            model, lambda t: load_market_data(settings, cache, t), settings.editor_review
+        )
 
     for ticker in [t.upper() for t in args.tickers]:
         usage = UsageCounter()

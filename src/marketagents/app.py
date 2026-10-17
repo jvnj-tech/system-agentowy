@@ -150,7 +150,11 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
         usage = UsageCounter()
         state = run_report_with_fallback(
             chat_model(),
-            lambda llm: build_graph(llm, lambda t: load_market_data(settings, cache, t, ma)),
+            lambda llm: build_graph(
+                llm,
+                lambda t: load_market_data(settings, cache, t, ma),
+                settings.editor_review,
+            ),
             ticker,
             on_step,
             config={"callbacks": [usage]},

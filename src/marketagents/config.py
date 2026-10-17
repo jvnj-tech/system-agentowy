@@ -28,6 +28,8 @@ class Settings:
     # Czy pula ma używać tylko modeli z zaliczonym testem kwalifikacyjnym.
     require_qualified: bool = True
     results_dir: Path = Path("wyniki")
+    # Czy redaktor sprawdza raport sekcja po sekcji po weryfikacji kodem.
+    editor_review: bool = True
 
 
 def load_settings() -> Settings:
@@ -48,4 +50,5 @@ def load_settings() -> Settings:
         llm_models=tuple(m.strip() for m in os.getenv("LLM_MODELS", "").split(",") if m.strip()),
         require_qualified=os.getenv("LLM_REQUIRE_QUALIFIED", "1") != "0",
         results_dir=Path(os.getenv("MARKETAGENTS_RESULTS_DIR", "wyniki")),
+        editor_review=os.getenv("EDITOR_REVIEW", "1") != "0",
     )

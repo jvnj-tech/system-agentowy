@@ -189,7 +189,7 @@ def test_qualification_resumes_after_daily_limit(monkeypatch):
     monkeypatch.setattr("marketagents.graph.run_report", fake_report)
     monkeypatch.setattr(qualification, "test_data", lambda s, t: None)
     monkeypatch.setattr(qualification, "_expected_analysts", lambda data: 1)
-    monkeypatch.setattr("marketagents.graph.build_graph", lambda model, load: None)
+    monkeypatch.setattr("marketagents.graph.build_graph", lambda *args: None)
     monkeypatch.setattr("marketagents.llm.make_model", lambda spec, settings: None)
     monkeypatch.setattr("marketagents.llm.ModelPool", lambda **kw: None)
     done = {"AAPL": {"zaliczony": True}, "LULU": {"zaliczony": True}}

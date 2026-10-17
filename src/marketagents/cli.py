@@ -106,7 +106,9 @@ def report(argv: list[str] | None = None) -> None:
     print("Pobieranie danych i generowanie raportu...", flush=True)
     state = run_report_with_fallback(
         get_chat_model(settings),
-        lambda llm: build_graph(llm, lambda t: load_market_data(settings, cache, t)),
+        lambda llm: build_graph(
+            llm, lambda t: load_market_data(settings, cache, t), settings.editor_review
+        ),
         args.ticker.upper(),
         lambda node: print(
             f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True

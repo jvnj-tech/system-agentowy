@@ -206,3 +206,25 @@ Tabela danych:
 Raport:
 {report}
 """
+
+EDITOR_REVIEW = """\
+Jesteś redaktorem raportów analitycznych. Sprawdź poniższy raport o spółce {ticker} sekcja
+po sekcji i wypisz tylko rzeczywiste błędy treści:
+- sprzeczności między sekcjami albo z kartą faktów (np. inny kierunek trendu niż w danych),
+- twierdzenia, których nie ma w karcie faktów ani w wiadomościach,
+- opinie autorów artykułów podane jako fakty,
+- wnioski i prognozy bez podstaw w danych.
+Nie zgłaszaj stylu, długości ani braków. Odwołania {{{{id}}}} to wartości z karty faktów,
+a numery [n] to wiadomości z listy.
+Każdy błąd zapisz w osobnym wierszu: „- [sekcja] „cytat zdania”: na czym polega błąd”.
+Jeśli nie ma błędów, odpowiedz dokładnie: BRAK UWAG.
+
+Karta faktów:
+{facts}
+
+Wiadomości:
+{news}
+
+Raport:
+{draft}
+"""

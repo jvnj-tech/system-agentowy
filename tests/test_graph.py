@@ -292,3 +292,38 @@ def test_missing_section_goes_back_to_editor_with_its_analysis():
     assert "Analizy cząstkowe brakujących sekcji" in llm.prompts[-1]
     assert "### Analiza: fundamentalna" in llm.prompts[-1]
     assert "### Analiza: techniczna" not in llm.prompts[-1]
+
+
+def test_editor_review_finds_section_error_and_report_is_fixed_once():
+    from marketagents.graph import parse_review
+
+    assert parse_review("BRAK UWAG") == []
+    assert parse_review("- [Wiadomości] „Akcje nie rosną”: sprzeczne z kartą") == [
+        "[Wiadomości] „Akcje nie rosną”: sprzeczne z kartą"
+    ]
+    contradiction = "Raport {{close}}, akcje od miesięcy nie rosną." + END
+    fixed = "Raport {{close}}." + END
+    llm = RecordingLLM(
+        responses=[
+            "Analiza.",
+            contradiction,
+            "- [Podsumowanie] „akcje od miesięcy nie rosną”: sprzeczne z kartą faktów",
+            fixed,
+        ],
+        prompts=[],
+    )
+    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    assert "Sprawdź poniższy raport" in llm.prompts[2]
+    assert "Redaktor (sprawdzenie sekcji)" in llm.prompts[3]
+    assert state["verified"] and state["reviewed"]
+    assert state["review_issues"] == [
+        "[Podsumowanie] „akcje od miesięcy nie rosną”: sprzeczne z kartą faktów"
+    ]
+    assert body(state["report"]).startswith("Raport 100,00 USD.")
+    assert len(llm.prompts) == 4  # bez drugiego sprawdzenia przez redaktora
+
+
+def test_editor_review_without_remarks_finishes():
+    llm = RecordingLLM(responses=["Analiza.", "Raport {{close}}." + END, "BRAK UWAG"], prompts=[])
+    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    assert state["verified"] and state["review_issues"] == [] and len(llm.prompts) == 3

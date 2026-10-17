@@ -143,7 +143,11 @@ Na końcu raportu kod dopisuje zakres danych: daty notowań, sprawozdania roczne
 makro i wiadomości, ostrzeżenie, gdy notowania są starsze niż wiadomości, oraz listę
 brakujących wielkości.
 
-Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz poprawić. Gotowy
+Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz poprawić. Raport,
+który przeszedł weryfikację kodem, redaktor sprawdza jeszcze sekcja po sekcji (sprzeczności
+między sekcjami i z kartą faktów, twierdzenia bez pokrycia w danych i wiadomościach, opinie
+podane jako fakty) i raz poprawia zgłoszone miejsca; to ocena modelu, więc nie zmienia statusu
+weryfikacji (wyłącza ją `EDITOR_REVIEW=0`). Gotowy
 raport w razie błędów wraca do redaktora z ich listą (najwyżej dwa razy), a to, czego nie
 udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]”,
 „[niezweryfikowana interpretacja]” lub „[brak źródła]”. Twierdzeń bez liczb i ocen
