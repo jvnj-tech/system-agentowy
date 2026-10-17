@@ -46,3 +46,13 @@ def test_forecasts_without_attribution():
     # sekcja ograniczeń i przeczenia opisują, czego raport nie obejmuje
     assert not check_forecasts("Dane nie uwzględniają zmian w najbliższym okresie.")
     assert not check_forecasts("## Ograniczenia analizy\nRaport pomija ryzyko korekty.")
+
+
+def test_numbers_written_as_words():
+    from marketagents.grounding import check_spelled_numbers
+
+    assert check_spelled_numbers("Sprzedaż spadła o cztery procent [4].")
+    assert check_spelled_numbers("Spadek akcji o ponad pięćdziesiąt procent [7].")
+    assert check_spelled_numbers("Nvidia przekaże dwieście pięćdziesiąt milionów dolarów [3].")
+    assert not check_spelled_numbers("Spółka ogłosiła dwa nowe produkty [1].")
+    assert not check_spelled_numbers("Sprzedaż wyraźnie spadła [4].")

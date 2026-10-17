@@ -136,8 +136,8 @@ opisz po polsku najważniejsze wątki z ostatnich dni i ich możliwy wpływ na s
   zamiast powtarzać opinię.
 - Wiadomość o innej spółce, branży lub całym rynku opisuj tylko wtedy, gdy wprost dotyczy
   {ticker}, i zaznacz, że to informacja o branży lub rynku.
-- Nie przytaczaj liczb z artykułów, opisz je słowami (np. „wyraźny wzrost sprzedaży”),
-  bo nie da się ich zweryfikować.
+- Nie przytaczaj liczb z artykułów, także zapisanych słowami („cztery procent”); opisz
+  zjawisko bez liczby (np. „wyraźny wzrost sprzedaży”), bo wartości nie da się zweryfikować.
 
 {rules}
 Karta faktów:

@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from html import escape
 
 from marketagents.facts import Fact, FactSheet
-from marketagents.grounding import check_forecasts, check_news_content
+from marketagents.grounding import check_forecasts, check_news_content, check_spelled_numbers
 from marketagents.interpretation import InterpretationIssue, check_interpretations
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
@@ -43,7 +43,8 @@ INDEX_NAME = re.compile(r"NASDAQ[- ]?100|S&P[- ]?500|Russell[- ]?2000", re.IGNOR
 # nie kończy zdania, żeby podpowiedź wskazała fakt, przy którym stoi liczba.
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 ABBREVIATION = re.compile(
-    r"(?<![\w.])(?:ok|np|m\.in|tj|tzn|tzw|wg|ang|por|zob|ca|mln|mld|tys|pkt|proc|r)\.$",
+    r"(?<![\w.])(?:ok|np|m\.in|tj|tzn|tzw|wg|ang|por|zob|ca|mln|mld|tys|pkt|proc|r|ds|itd|itp"
+    r"|nr|dot|godz|mies|prof|dr|mgr|inż|św|ul|wyd|red|zł)\.$",
     re.IGNORECASE,
 )
 
@@ -255,7 +256,7 @@ def verify(
 
     uncited: list[str] = []
     bad: list[str] = []
-    content = check_forecasts(text)
+    content = check_forecasts(text) + check_spelled_numbers(text)
     if news_count is not None:
         part = text if whole_text_is_news else news_part(text)
         if part.strip():
