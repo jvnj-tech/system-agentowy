@@ -35,6 +35,39 @@ ANALYST_FIXES = 1
 MAX_NEWS = 15
 # Ostatnia sekcja raportu; jej brak oznacza, że model urwał odpowiedź.
 LAST_SECTION = "## Ograniczenia analizy"
+# Sekcje raportu w wymaganej kolejności i analiza, z której powstaje każda z nich
+# (sekcja bez analizy cząstkowej, np. bez danych makro, jest pomijana).
+SECTIONS = [
+    ("## Podsumowanie", None),
+    ("## Analiza techniczna", "techniczna"),
+    ("## Analiza fundamentalna", "fundamentalna"),
+    ("## Wiadomości", "wiadomości"),
+    ("## Otoczenie makroekonomiczne", "makroekonomiczna"),
+    (LAST_SECTION, None),
+]
+
+
+def expected_sections(analyses: dict[str, str]) -> list[tuple[str, str | None]]:
+    return [(title, name) for title, name in SECTIONS if name is None or analyses.get(name)]
+
+
+def section_issues(draft: str, analyses: dict[str, str]) -> list[str]:
+    """Brakujące sekcje i sekcje w złej kolejności (model potrafi zgubić sekcję przy poprawce)."""
+    expected = expected_sections(analyses)
+    lines = [line.strip() for line in draft.splitlines()]
+    positions = {title: lines.index(title) for title, _ in expected if title in lines}
+    issues = [
+        f"Raport jest niekompletny: brak sekcji „{title}”"
+        for title, _ in expected
+        if title not in positions
+    ]
+    present = [title for title, _ in expected if title in positions]
+    if [positions[t] for t in present] != sorted(positions[t] for t in present):
+        order = ", ".join(f"„{t}”" for t, _ in expected)
+        issues.append(f"Sekcje raportu są w złej kolejności; wymagana kolejność: {order}")
+    return issues
+
+
 # Fakty, które dostaje analityk wiadomości, by porównać opinie z artykułów z danymi.
 NEWS_CONTEXT = ("change_1m", "change_3m", "change_1y")
 
@@ -150,7 +183,16 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
 
     def editor(state: ReportState) -> ReportState:
         facts = FactSheet.from_records(state["facts"])
+        analyses = state.get("analyses", {})
         if state.get("issues"):
+            # Do poprawki trafiają tylko analizy sekcji, których brakuje w raporcie: pełny
+            # zestaw analiz nie mieści się w limicie tokenów na minutę darmowych planów.
+            lines = {line.strip() for line in state["draft"].splitlines()}
+            missing = [
+                f"### Analiza: {name}\n{analyses[name]}"
+                for title, name in expected_sections(analyses)
+                if name and title not in lines
+            ]
             prompt = prompts.EDITOR_FIX.format(
                 ticker=state["ticker"],
                 issues="\n".join(f"- {i}" for i in state["issues"]),
@@ -158,9 +200,10 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
                 facts=prompt_table(facts),
                 draft=state["draft"],
             )
+            if missing:
+                prompt += "\n\nAnalizy cząstkowe brakujących sekcji:\n" + "\n\n".join(missing)
             # Model bez treści w odpowiedzi nie może skasować raportu: zostaje poprzednia wersja.
             return {"draft": ask(prompt) or state["draft"]}
-        analyses = state.get("analyses", {})
         prompt = prompts.EDITOR.format(
             ticker=state["ticker"],
             rules=prompts.PLACEHOLDER_RULES,
@@ -178,9 +221,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData]):
             news=state.get("news", []) if has_news else None,
             names=(state["ticker"], state.get("company", "")),
         )
-        issues = result.issues()
-        if LAST_SECTION not in state["draft"]:
-            issues.append(f"Raport jest niekompletny: brak sekcji „{LAST_SECTION}”")
+        issues = result.issues() + section_issues(state["draft"], state.get("analyses", {}))
         return {
             "issues": issues,
             "issue_counts": [len(issues)],

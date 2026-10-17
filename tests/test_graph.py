@@ -6,7 +6,12 @@ from marketagents.graph import LAST_SECTION, MAX_FIXES, MarketData, build_graph,
 TECH = [Fact("close", "kurs", 100.0, "USD"), Fact("rsi_14", "RSI", 55.56, "", 1, TECHNICAL)]
 FUND = [Fact("fy_net_margin", "marża netto", 24.31, "%", 1, FUNDAMENTAL)]
 MACROS = [Fact("macro_10y", "rentowność 10Y", 4.12, "%", 2, MACRO)]
-END = f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
+# Wszystkie sekcje raportu: graf zgłasza brakującą sekcję jako błąd do poprawy.
+HEADS = (
+    "\n## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak.\n## Analiza fundamentalna\nTak."
+    "\n## Wiadomości\nTak.\n## Otoczenie makroekonomiczne\nTak."
+)
+END = HEADS + f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
 NEWS = [{"published": "2026-10-01 14:00", "source": "Reuters", "headline": "Nowy produkt"}]
 
 
@@ -185,6 +190,10 @@ class ScriptedLLM(FakeListChatModel):
         return self.script[role].pop(0)
 
 
+NEWS_HEAD = "## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak.\n## Wiadomości\n"
+NEWS_END = f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
+
+
 def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
     facts = TECH + [Fact("change_1y", "zmiana 1R", 30.8, "%", 1, TECHNICAL)]
     news = NEWS + [{"published": "2026-10-02 09:00", "source": "CNBC", "headline": "Wyniki"}]
@@ -196,8 +205,8 @@ def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
             "analitykiem technicznym": ["Analiza techniczna."],
             "wiadomości rynkowych": [sentence + ".", sentence + " [1]."],
             "redaktorem": [
-                "## Wiadomości\n" + sentence + "." + END,
-                "## Wiadomości\n" + sentence + " [1]." + END,
+                NEWS_HEAD + sentence + "." + NEWS_END,
+                NEWS_HEAD + sentence + " [1]." + NEWS_END,
             ],
         },
     )
@@ -268,3 +277,18 @@ def test_unverified_number_is_marked_only_where_it_was_typed():
     # RSI = 55,6 z karty nie dostaje oznaczenia, choć ma ten sam zapis co wpisana liczba.
     assert report.count("[niezweryfikowane]") == 1
     assert "czyli 55,6 [niezweryfikowane] %" in report
+
+
+def test_missing_section_goes_back_to_editor_with_its_analysis():
+    data = MarketData(facts=TECH + FUND)
+    without_fundamentals = (
+        "## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak." + f"\n{LAST_SECTION}\nKoniec."
+    )
+    state, llm = run(
+        ["Analiza A.", "Analiza A.", without_fundamentals, "Raport {{close}}." + END], data
+    )
+    assert state["verified"] and state["attempts"] == 2
+    assert "brak sekcji „## Analiza fundamentalna”" in llm.prompts[-1]
+    assert "Analizy cząstkowe brakujących sekcji" in llm.prompts[-1]
+    assert "### Analiza: fundamentalna" in llm.prompts[-1]
+    assert "### Analiza: techniczna" not in llm.prompts[-1]

@@ -183,12 +183,24 @@ def check_news_content(text: str, news: list[dict], allowed: list[str] = ()) -> 
     return issues
 
 
+LIMITATIONS = "## Ograniczenia analizy"
+NEGATION = re.compile(r"\bnie\b", re.IGNORECASE)
+
+
 def check_forecasts(text: str) -> list[ContentIssue]:
-    """Prognozy i wnioski o przyszłym kursie, nieprzypisane autorowi wiadomości."""
+    """Prognozy i wnioski o przyszłym kursie, nieprzypisane autorowi wiadomości.
+
+    Pomijana jest sekcja ograniczeń (opisuje, czego raport nie uwzględnia, np. „zmian
+    w najbliższym okresie”) i zdania, w których sformułowanie stoi po przeczeniu.
+    """
     issues = []
+    start = text.find(LIMITATIONS)
+    if start >= 0:
+        end = text.find("\n## ", start + len(LIMITATIONS))
+        text = text[:start] + (text[end:] if end >= 0 else "")
     for sentence in sentences(text):
         match = FORECAST.search(sentence)
-        if not match:
+        if not match or NEGATION.search(sentence[: match.start()]):
             continue
         if CITATION.search(sentence) and ATTRIBUTION.search(sentence):
             continue

@@ -43,3 +43,6 @@ def test_forecasts_without_attribution():
         "Analityk Dan Ives ocenił, że spadek jest przesadzony i zapowiada dalszy wzrost [1]."
     )
     assert not check_forecasts("Kurs wzrósł w ostatnim miesiącu o {{change_1m}}.")
+    # sekcja ograniczeń i przeczenia opisują, czego raport nie obejmuje
+    assert not check_forecasts("Dane nie uwzględniają zmian w najbliższym okresie.")
+    assert not check_forecasts("## Ograniczenia analizy\nRaport pomija ryzyko korekty.")

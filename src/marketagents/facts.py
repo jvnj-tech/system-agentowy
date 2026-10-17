@@ -228,9 +228,9 @@ def ma_order(values: dict[int, float]) -> tuple[str, str]:
     ordered = sorted(windows, key=lambda n: values[n], reverse=True)
     text = " > ".join(f"SMA({n})" for n in ordered)
     if ordered == windows:
-        return text, "krótsze średnie nad dłuższymi"
+        return text, "krótsze średnie nad dłuższymi: przewaga wzrostów w krótkim terminie"
     if ordered == windows[::-1]:
-        return text, "krótsze średnie pod dłuższymi"
+        return text, "krótsze średnie pod dłuższymi: przewaga spadków w krótkim terminie"
     return text, "układ mieszany: średnie nie są uporządkowane według długości"
 
 

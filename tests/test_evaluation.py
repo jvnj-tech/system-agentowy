@@ -36,7 +36,12 @@ FACTS = [
     Fact("fy_net_margin", "marża netto", 24.31, "%", 1, FUNDAMENTAL),
 ]
 SHEET = FactSheet(FACTS)
-END = f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
+# Wszystkie sekcje raportu: graf zgłasza brakującą sekcję jako błąd do poprawy.
+HEADS = (
+    "\n## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak.\n## Analiza fundamentalna\nTak."
+    "\n## Wiadomości\nTak.\n## Otoczenie makroekonomiczne\nTak."
+)
+END = HEADS + f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
 DRAFT = (
     "## Podsumowanie\nStan na {{as_of}}: kurs {{close}} USD jest powyżej SMA(200) {{sma_200}}. "
     "W ostatnim miesiącu kurs spadł o {{change_1m}}. W ciągu roku wzrósł o {{change_1y}}. "

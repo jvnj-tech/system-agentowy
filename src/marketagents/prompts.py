@@ -23,6 +23,8 @@ Zasady dotyczące treści:
   {{fy_revenue_growth}}”, a nie „odnotowano {{fy_revenue_growth}}”. Nie wymieniaj samych
   wartości bez nazw wielkości.
 - Pisz wyłącznie po polsku, bez angielskich wtrąceń.
+- Nie wspominaj w tekście karty faktów ani kolumny „ocena” (nie pisz „w ocenie karty”);
+  opisuj zjawisko bezpośrednio, zgodnie z oceną.
 """
 
 # Wariant porównawczy do ewaluacji: model sam przepisuje liczby, bez odwołań i weryfikatora.

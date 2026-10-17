@@ -147,7 +147,7 @@ def test_zone_and_order_words():
     assert zone(10, "dolnej wstęgi", "górnej wstęgi") == "przy dolnej wstęgi"
     assert zone(63, "a", "b") == "w górnej części przedziału"
     assert zone(105, "a", "b") == "powyżej b"
-    assert ma_order({20: 3.0, 50: 2.0, 200: 1.0})[1] == "krótsze średnie nad dłuższymi"
+    assert ma_order({20: 3.0, 50: 2.0, 200: 1.0})[1].startswith("krótsze średnie nad dłuższymi")
     text, assessment = ma_order({20: 94.7, 50: 100.9, 200: 98.2})
     assert text == "SMA(50) > SMA(200) > SMA(20)" and assessment.startswith("układ mieszany")
     assert distance_assessment(-6.0, 50.0).endswith("odległość typowa na tle ostatnich 3 lat")
