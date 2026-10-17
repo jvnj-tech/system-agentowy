@@ -39,7 +39,7 @@ Interfejs w przeglądarce:
 ```bash
 uv run streamlit run src/marketagents/app.py
 ```
-
+W panelu bocznym wybiera się spółkę z listy NASDAQ-100 (tylko z tej listy, także w `marketagents-report`). Lista to skład
 W panelu bocznym wybiera się spółkę z listy NASDAQ-100 lub wpisuje symbol. Lista to skład
 indeksu z danego dnia pobierany z serwisu Nasdaq (odświeżany co 12 godzin); bez dostępu
 do serwisu używana jest kopia z pliku `data/nasdaq100.csv` z datą stanu w nagłówku. Aplikacja ma trzy
