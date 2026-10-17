@@ -38,7 +38,10 @@ ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 CITATION = re.compile(r"\[(\d{1,2})\]")
 NEWS_SECTION = "## Wiadomości"
 LIST_MARKER = re.compile(r"^\s*\d+[.)]\s", re.MULTILINE)
-INDEX_NAME = re.compile(r"NASDAQ[- ]?100|S&P[- ]?500|Russell[- ]?2000", re.IGNORECASE)
+INDEX_NAME = re.compile(
+    r"NASDAQ[-\s\u00a0\u202f]?100|S&P[-\s\u00a0\u202f]?500|Russell[-\s\u00a0\u202f]?2000",
+    re.IGNORECASE,
+)
 # Koniec zdania: znak końca i odstęp albo nowy wiersz. Kropka po skrócie („ok. 61”, „np. RSI”)
 # nie kończy zdania, żeby podpowiedź wskazała fakt, przy którym stoi liczba.
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")

@@ -170,3 +170,8 @@ def test_news_sentences_must_cite_existing_items():
     assert "1. [CNBC, 2026-10-11: Nowy produkt](https://x.example/b)" in cited
     assert "2. [Yahoo, 2026-10-12: Zarząd zaprzecza plotkom](https://x.example/a)" in cited
     assert cited.index("Źródła wiadomości") < cited.index("## Ograniczenia analizy")
+
+
+def test_index_names_with_narrow_spaces_are_not_numbers():
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    assert verify("Wycena jest niższa niż mediana S&P 500 i NASDAQ 100.", facts).ok
