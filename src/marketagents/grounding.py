@@ -121,7 +121,7 @@ FORECAST = re.compile(
 NUMBER_WORD = (
     r"(?:jed(?:en|na|no|nego)|dw(?:a|ie|óch|u)|trz(?:y|ech)|czter(?:y|ech)|pię(?:ć|ciu)|"
     r"sze(?:ść|ściu)|siedem|siedmiu|osiem|ośmiu|dziewię(?:ć|ciu)|dziesię(?:ć|ciu)|"
-    r"\w*naście|\w*naściu|\w*dzieści|\w*dziesiąt|\w*dziesięciu|sto|stu|\w*set|półtora|"
+    r"\w*naście|\w*naściu|\w*dzieści|\w*dziesiąt|\w*dziesięciu|sto|stu|dwieście|trzysta|czterysta|\w*set|półtora|"
     r"tysiąc\w*|tysięcy|milion\w*|miliard\w*|bilion\w*)"
 )
 SPELLED_NUMBER = re.compile(
