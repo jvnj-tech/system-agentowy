@@ -102,6 +102,9 @@ def report(argv: list[str] | None = None) -> None:
 
     settings = load_settings()
     cache = DiskCache(settings.cache_dir, offline=settings.offline)
+    # System jest projektowany i testowany na spółkach z NASDAQ-100.
+    if company_name(args.ticker, cache) is None:
+        parser.error(f"{args.ticker.upper()} nie należy do aktualnego składu NASDAQ-100")
 
     print("Pobieranie danych i generowanie raportu...", flush=True)
     state = run_report_with_fallback(
