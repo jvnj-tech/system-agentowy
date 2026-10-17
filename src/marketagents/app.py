@@ -5,7 +5,6 @@ uv run streamlit run src/marketagents/app.py
 
 from __future__ import annotations
 
-import re
 import time
 
 import pandas as pd
@@ -36,7 +35,6 @@ from marketagents.indicators import MovingAverages, compute_all
 from marketagents.llm import AllModelsExhausted, get_chat_model
 from marketagents.qa import answer_question
 
-TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
 # ETF odwzorowujący NASDAQ-100, notowany na tych samych sesjach co spółki.
 BENCHMARK, BENCHMARK_NAME = "QQQ", "NASDAQ-100 (QQQ)"
 VOLATILITY_WINDOW = 30
@@ -207,11 +205,9 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
     with st.sidebar:
         st.header("Spółka")
         choice = st.selectbox("Spółka z NASDAQ-100", labels, index=0)
-        typed = st.text_input("lub symbol spoza listy", placeholder="np. INTC").strip().upper()
-        ticker = typed or choice.split(" — ")[0]
-        if not TICKER.match(ticker):
-            st.error("Niepoprawny symbol spółki.")
-            return None, False, None
+        # System jest projektowany i testowany na spółkach z NASDAQ-100, więc wybór
+        # ogranicza się do aktualnego składu indeksu.
+        ticker = choice.split(" — ")[0]
         cached = ticker in st.session_state.reports
         label = "Wygeneruj raport ponownie" if cached else "Wygeneruj raport"
         # Okna średnich kroczących z pliku .env (SMA_WINDOWS, EMA_WINDOW).
