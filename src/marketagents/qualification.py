@@ -107,7 +107,7 @@ def qualify(spec: str, settings, tickers=DEFAULT_TICKERS, done: dict | None = No
     results = {t: r for t, r in (done or {}).items() if t in tickers}
     for ticker in [t for t in tickers if t not in results]:
         data = test_data(settings, ticker)
-        graph = build_graph(model, lambda t, data=data: data, settings.editor_review)
+        graph = build_graph(model, lambda t, data=data: data)
         start = time.perf_counter()
         try:
             state = run_report(graph, ticker)

@@ -660,9 +660,7 @@ def _generate(args, settings, cache) -> None:
     variant = WITHOUT_CARD if args.bez_karty else WITH_CARD
 
     def make_graph(model):
-        return build_graph(
-            model, lambda t: load_market_data(settings, cache, t), settings.editor_review
-        )
+        return build_graph(model, lambda t: load_market_data(settings, cache, t))
 
     for ticker in [t.upper() for t in args.tickers]:
         usage = UsageCounter()

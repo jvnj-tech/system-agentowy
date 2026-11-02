@@ -32,7 +32,7 @@ def body(report: str) -> str:
 
 def run(responses: list[str], data: MarketData) -> tuple[dict, RecordingLLM]:
     llm = RecordingLLM(responses=responses, prompts=[])
-    state = build_graph(llm, lambda ticker: data).invoke({"ticker": "TEST"})
+    state = build_graph(llm, lambda ticker: data, review=False).invoke({"ticker": "TEST"})
     return state, llm
 
 
@@ -92,7 +92,7 @@ def test_run_report_merges_updates_like_invoke():
     responses = ["Analiza A."] * 3 + ["Raport {{close}}." + END]
     steps: list[str] = []
     llm = RecordingLLM(responses=responses, prompts=[])
-    state = run_report(build_graph(llm, lambda ticker: data), "TEST", steps.append)
+    state = run_report(build_graph(llm, lambda ticker: data, review=False), "TEST", steps.append)
     assert set(state["analyses"]) == {"techniczna", "fundamentalna", "wiadomości"}
     assert body(state["report"]) == "Raport 100,00 USD." + END
     assert steps[0] == "load_data" and steps[-1] == "finalize"
@@ -167,7 +167,7 @@ class PromptLLM(FakeListChatModel):
 
 def test_run_report_sums_issue_counts_like_invoke():
     data = MarketData(facts=TECH + FUND)
-    graph = build_graph(PromptLLM(), lambda ticker: data)
+    graph = build_graph(PromptLLM(), lambda ticker: data, review=False)
     state = run_report(graph, "TEST")
     assert state["issue_counts"] == [0]
     assert state["issue_counts"] == graph.invoke({"ticker": "TEST"})["issue_counts"]
@@ -207,7 +207,8 @@ def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
             ],
         },
     )
-    state = build_graph(llm, lambda t: MarketData(facts=facts, news=news)).invoke({"ticker": "T"})
+    graph = build_graph(llm, lambda t: MarketData(facts=facts, news=news), review=False)
+    state = graph.invoke({"ticker": "T"})
     news_prompt = next(p for p in llm.prompts if "wiadomości rynkowych" in p)
     assert "[2] 2026-10-02, CNBC: Wyniki." in news_prompt
     assert "| {{change_1y}} |" in news_prompt
@@ -254,7 +255,7 @@ def test_report_restarts_on_next_model_after_daily_limit(tmp_path):
     restarts = []
     state = run_report_with_fallback(
         pool,
-        lambda llm: build_graph(llm, lambda t: MarketData(facts=TECH)),
+        lambda llm: build_graph(llm, lambda t: MarketData(facts=TECH), review=False),
         "TEST",
         on_restart=restarts.append,
     )
@@ -309,7 +310,7 @@ def test_editor_review_finds_section_error_and_report_is_fixed_once():
         ],
         prompts=[],
     )
-    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    state = build_graph(llm, lambda t: MarketData(facts=TECH)).invoke({"ticker": "T"})
     assert "Sprawdź poniższy raport" in llm.prompts[2]
     assert "Redaktor (sprawdzenie sekcji)" in llm.prompts[3]
     assert state["verified"] and state["reviewed"]
@@ -327,7 +328,7 @@ def test_review_fix_does_not_use_verifier_fix_limit():
         + [wrong] * (MAX_FIXES + 1),
         prompts=[],
     )
-    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    state = build_graph(llm, lambda t: MarketData(facts=TECH)).invoke({"ticker": "T"})
     # Pierwsza wersja, poprawka po uwagach redaktora i trzy poprawki błędów weryfikatora.
     assert not state["verified"] and state["attempts"] == MAX_FIXES + 2
     assert len(llm.prompts) == 3 + MAX_FIXES + 1
@@ -337,7 +338,7 @@ def test_review_enabled_keeps_verifier_fix_limit():
     llm = RecordingLLM(
         responses=["Analiza."] + ["RSI wynosi 70,1." + END] * (MAX_FIXES + 2), prompts=[]
     )
-    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    state = build_graph(llm, lambda t: MarketData(facts=TECH)).invoke({"ticker": "T"})
     # Raport nie przeszedł weryfikacji, więc nie było przeglądu ani poprawki po nim.
     assert not state["verified"] and state["attempts"] == MAX_FIXES + 1
     assert len(llm.prompts) == 2 + MAX_FIXES
@@ -345,5 +346,5 @@ def test_review_enabled_keeps_verifier_fix_limit():
 
 def test_editor_review_without_remarks_finishes():
     llm = RecordingLLM(responses=["Analiza.", "Raport {{close}}." + END, "BRAK UWAG"], prompts=[])
-    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    state = build_graph(llm, lambda t: MarketData(facts=TECH)).invoke({"ticker": "T"})
     assert state["verified"] and state["review_issues"] == [] and len(llm.prompts) == 3

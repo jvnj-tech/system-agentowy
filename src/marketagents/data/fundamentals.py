@@ -68,17 +68,6 @@ def cik_for_ticker(cache: DiskCache, ticker: str, user_agent: str | None) -> int
     raise KeyError(f"Nie znaleziono CIK dla {ticker}")
 
 
-def company_title(cache: DiskCache, ticker: str, user_agent: str | None) -> str | None:
-    """Nazwa spółki z tabeli SEC (np. „LULULEMON ATHLETICA INC.”) albo None."""
-    try:
-        table = cache.json("sec", "company_tickers", lambda: _get_json(TICKERS_URL, user_agent))
-    except Exception:  # noqa: BLE001
-        return None
-    return next(
-        (row["title"] for row in table.values() if row["ticker"].upper() == ticker.upper()), None
-    )
-
-
 def annual_facts(companyfacts: dict) -> pd.DataFrame:
     """Wartości roczne z raportów 10-K: wiersz = rok obrotowy, kolumna = wskaźnik.
 

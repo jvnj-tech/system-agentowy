@@ -151,7 +151,6 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
             lambda llm: build_graph(
                 llm,
                 lambda t: load_market_data(settings, cache, t, ma),
-                settings.editor_review,
             ),
             ticker,
             on_step,

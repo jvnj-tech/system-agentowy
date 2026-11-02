@@ -11,7 +11,7 @@ import time
 
 from marketagents.config import load_settings
 from marketagents.data.cache import DiskCache
-from marketagents.data.fundamentals import company_title, get_fundamentals
+from marketagents.data.fundamentals import get_fundamentals
 from marketagents.data.macro import get_macro
 from marketagents.data.news import get_news, relevant_news, select_news
 from marketagents.data.prices import get_prices
@@ -83,7 +83,7 @@ def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
     try:
         news = get_news(cache, ticker, settings.finnhub_api_key)
         news["published"] = news["published"].dt.strftime("%Y-%m-%d %H:%M")
-        name = company_name(ticker, cache) or company_title(cache, ticker, settings.sec_user_agent)
+        name = company_name(ticker, cache)
         data.company = name
         data.news = select_news(relevant_news(news.to_dict("records"), ticker, name), ticker, name)
     except Exception as exc:  # noqa: BLE001
@@ -109,9 +109,7 @@ def report(argv: list[str] | None = None) -> None:
     print("Pobieranie danych i generowanie raportu...", flush=True)
     state = run_report_with_fallback(
         get_chat_model(settings),
-        lambda llm: build_graph(
-            llm, lambda t: load_market_data(settings, cache, t), settings.editor_review
-        ),
+        lambda llm: build_graph(llm, lambda t: load_market_data(settings, cache, t)),
         args.ticker.upper(),
         lambda node: print(
             f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True

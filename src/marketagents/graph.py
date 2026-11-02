@@ -140,7 +140,7 @@ def _compact_news(news: list[dict]) -> str:
     )
 
 
-def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], review: bool = False):
+def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], review: bool = True):
     """review: po pozytywnej weryfikacji kodem redaktor sprawdza raport sekcja po sekcji
     (sprzeczności, twierdzenia bez pokrycia w danych, opinie podane jako fakty) i jeden raz
     poprawia zgłoszone miejsca. To ocena modelu, więc nie zmienia statusu weryfikacji."""

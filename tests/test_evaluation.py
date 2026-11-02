@@ -78,7 +78,7 @@ def test_record_of_graph_run(tmp_path):
     llm = FakeListChatModel(responses=responses)
     data = MarketData(facts=list(FACTS))
     usage = UsageCounter()
-    graph = build_graph(llm, lambda ticker: data)
+    graph = build_graph(llm, lambda ticker: data, review=False)
     state = run_report(graph, "TEST", config={"callbacks": [usage]})
     record = report_record("TEST", state, 12.34, usage, "model")
 
