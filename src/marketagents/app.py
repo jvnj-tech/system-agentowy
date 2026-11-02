@@ -222,8 +222,7 @@ def show_report(ticker: str, result: dict) -> None:
         st.success(
             "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, ich opis zgadza się "
             "z ocenami wyznaczonymi przez kod, a zdania o wiadomościach wskazują źródła "
-            f"(wersje redakcji: {result['attempts']}, poprawki analityków: "
-            f"{result.get('analyst_fixes', 0)}, czas: {result['elapsed']:.0f} s). "
+            f"(wersje redakcji: {result['attempts']}, czas: {result['elapsed']:.0f} s). "
             "Twierdzeń bez liczb weryfikator nie sprawdza."
         )
     else:

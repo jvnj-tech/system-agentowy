@@ -143,12 +143,12 @@ Na końcu raportu kod dopisuje zakres danych: daty notowań, sprawozdania roczne
 makro i wiadomości, ostrzeżenie, gdy notowania są starsze niż wiadomości, oraz listę
 brakujących wielkości.
 
-Każda analiza cząstkowa jest sprawdzana od razu i analityk może ją raz poprawić. Raport,
-który przeszedł weryfikację kodem, redaktor sprawdza jeszcze sekcja po sekcji (sprzeczności
+Analizy cząstkowe nie są sprawdzane osobno: weryfikator sprawdza raport redaktora, bo to on
+trafia do użytkownika. Raport, który przeszedł weryfikację kodem, redaktor sprawdza jeszcze sekcja po sekcji (sprzeczności
 między sekcjami i z kartą faktów, twierdzenia bez pokrycia w danych i wiadomościach, opinie
 podane jako fakty) i raz poprawia zgłoszone miejsca; to ocena modelu, więc nie zmienia statusu
 weryfikacji (wyłącza ją `EDITOR_REVIEW=0`). Gotowy
-raport w razie błędów wraca do redaktora z ich listą (najwyżej dwa razy), a to, czego nie
+raport w razie błędów wraca do redaktora z ich listą (najwyżej trzy razy), a to, czego nie
 udało się poprawić, jest oznaczane w raporcie jako „[niezweryfikowane]”,
 „[niezweryfikowana interpretacja]” lub „[brak źródła]”. Twierdzeń bez liczb i ocen
 (np. o popycie konsumentów) weryfikator nie sprawdza. Każda liczba w raporcie ma w aplikacji podpowiedź
@@ -157,7 +157,7 @@ ze źródłem danych i sposobem obliczenia, widoczną po kliknięciu liczby lub 
 ## Ewaluacja
 
 Każdy raport wygenerowany w aplikacji jest dopisywany do pliku `wyniki/raporty.jsonl`
-(czas, wywołania modelu, tokeny, poprawki analityków, liczba wersji redakcji, problemy
+(czas, wywołania modelu, tokeny, liczba wersji redakcji, problemy
 w kolejnych wersjach, oznaczone liczby i zdania). Polecenie `marketagents-eval` zbiera
 z niego wyniki:
 

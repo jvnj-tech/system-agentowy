@@ -84,7 +84,7 @@ def test_record_of_graph_run(tmp_path):
 
     assert usage.calls == 4  # dwóch analityków i dwie wersje redakcji
     assert record["attempts"] == 2 and record["verified"]
-    assert record["analyst_fixes"] == 0 and record["flagged"] == 0
+    assert record["flagged"] == 0
     assert record["issue_counts"] == [1, 0]
     assert record["input_tokens"] is None
     assert record["unsupported_numbers"] == []

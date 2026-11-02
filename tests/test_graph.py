@@ -127,14 +127,14 @@ def test_wrong_interpretation_goes_back_to_editor_and_is_marked():
     assert 'class="fact"' in state["report_html"]
 
 
-def test_analyst_output_is_verified_and_fixed_before_editor():
+def test_analyst_output_goes_to_editor_without_separate_verification():
     state, llm = run(
-        ["RSI wynosi 70,1.", "RSI wynosi {{rsi_14}}.", "Raport {{rsi_14}}." + END],
+        ["RSI wynosi 70,1.", "Raport {{rsi_14}}." + END],
         MarketData(facts=TECH),
     )
-    assert state["analyses"]["techniczna"] == "RSI wynosi {{rsi_14}}."
-    assert state["analyst_fixes"] == 1
-    assert "Weryfikator znalazł w Twojej analizie" in llm.prompts[1]
+    # Analiza cząstkowa nie jest sprawdzana osobno: weryfikator sprawdza raport redaktora.
+    assert state["analyses"]["techniczna"] == "RSI wynosi 70,1."
+    assert len(llm.prompts) == 2
     assert state["verified"] and state["attempts"] == 1
 
 
@@ -162,18 +162,15 @@ class PromptLLM(FakeListChatModel):
         prompt = messages[-1].content
         if "Jesteś redaktorem" in prompt:
             return "Raport {{close}}." + END
-        if "Weryfikator znalazł w Twojej analizie" in prompt:
-            return "Analiza poprawiona."
         return "Analiza z liczbą 12,3."
 
 
-def test_run_report_sums_analyst_fixes_and_issue_counts_like_invoke():
+def test_run_report_sums_issue_counts_like_invoke():
     data = MarketData(facts=TECH + FUND)
     graph = build_graph(PromptLLM(), lambda ticker: data)
     state = run_report(graph, "TEST")
-    assert state["analyst_fixes"] == 2
     assert state["issue_counts"] == [0]
-    assert state["analyst_fixes"] == graph.invoke({"ticker": "TEST"})["analyst_fixes"]
+    assert state["issue_counts"] == graph.invoke({"ticker": "TEST"})["issue_counts"]
 
 
 class ScriptedLLM(FakeListChatModel):
@@ -203,7 +200,7 @@ def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
         prompts=[],
         script={
             "analitykiem technicznym": ["Analiza techniczna."],
-            "wiadomości rynkowych": [sentence + ".", sentence + " [1]."],
+            "wiadomości rynkowych": [sentence + "."],
             "redaktorem": [
                 NEWS_HEAD + sentence + "." + NEWS_END,
                 NEWS_HEAD + sentence + " [1]." + NEWS_END,
@@ -214,7 +211,7 @@ def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
     news_prompt = next(p for p in llm.prompts if "wiadomości rynkowych" in p)
     assert "[2] 2026-10-02, CNBC: Wyniki." in news_prompt
     assert "| {{change_1y}} |" in news_prompt
-    assert state["analyst_fixes"] == 1 and state["attempts"] == 2
+    assert state["attempts"] == 2
     assert "nie wskazuje źródła" in llm.prompts[-1]
     assert "tygodniu [1]." in state["report"]
     assert "1. Reuters, 2026-10-01: Nowy produkt" in state["report"]
@@ -229,7 +226,7 @@ def test_empty_model_answer_is_retried_and_then_skipped():
     # Pusta odpowiedź analityka: ponowienie, a potem pominięcie analizy.
     assert "techniczna" not in state.get("analyses", {})
     assert len(llm.prompts) == 3 and state["verified"]
-    state, _ = run(["Analiza.", "", "", "", "", "", ""], MarketData(facts=TECH))
+    state, _ = run(["Analiza."] + [""] * 2 * (MAX_FIXES + 1), MarketData(facts=TECH))
     assert not state["verified"]
     assert body(state["report"]).startswith("Model językowy nie zwrócił treści raportu")
 

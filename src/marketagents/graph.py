@@ -30,9 +30,7 @@ from marketagents.interpretation import mark_sentences, prompt_table
 from marketagents.llm import AllModelsExhausted, message_text
 from marketagents.verifier import SOURCE_MARKER, cite, mark_unverified, render, verify
 
-MAX_FIXES = 2
-# Analiza cząstkowa jest sprawdzana od razu i może zostać raz poprawiona przez analityka.
-ANALYST_FIXES = 1
+MAX_FIXES = 3
 MAX_NEWS = 15
 # Ostatnia sekcja raportu; jej brak oznacza, że model urwał odpowiedź.
 LAST_SECTION = "## Ograniczenia analizy"
@@ -87,7 +85,6 @@ class ReportState(TypedDict, total=False):
     facts: list[dict]
     news: list[dict]
     analyses: Annotated[dict[str, str], operator.or_]
-    analyst_fixes: Annotated[int, operator.add]
     draft: str
     issues: list[str]
     # Liczba problemów znalezionych przez weryfikator w kolejnych wersjach raportu.
@@ -172,7 +169,6 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
             has_data = any(f.group == group for f in facts)
             if needs_news:
                 facts = FactSheet([*facts, *(sheet[i] for i in NEWS_CONTEXT if i in sheet)])
-            news_count = len(state.get("news", [])) if needs_news else None
             if needs_news and not state.get("news"):
                 return {}
             if not needs_news and not has_data:
@@ -186,25 +182,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
             text = ask(prompt)
             if not text:
                 return {}
-            fixes = 0
-            while fixes < ANALYST_FIXES:
-                result = verify(
-                    text,
-                    facts,
-                    news_count=news_count,
-                    whole_text_is_news=True,
-                    news=state.get("news", []) if needs_news else None,
-                    names=(state["ticker"], state.get("company", "")),
-                )
-                if result.ok:
-                    break
-                issues = "\n".join(f"- {i}" for i in result.issues())
-                fix = prompts.ANALYST_FIX.format(issues=issues, draft=text)
-                fixed = ask(prompt + "\n\n" + fix)
-                fixes += 1
-                if fixed:
-                    text = fixed
-            return {"analyses": {name: text}, "analyst_fixes": fixes}
+            return {"analyses": {name: text}}
 
         return node
 
@@ -349,8 +327,6 @@ def run_report(
                     state.setdefault("analyses", {}).update(value)
                 elif key == "issue_counts":
                     state.setdefault("issue_counts", []).extend(value)
-                elif key == "analyst_fixes":
-                    state["analyst_fixes"] = state.get("analyst_fixes", 0) + value
                 else:
                     state[key] = value
             if on_step:

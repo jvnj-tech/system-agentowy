@@ -174,7 +174,6 @@ def report_record(
         "llm_calls": usage.calls,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
-        "analyst_fixes": state.get("analyst_fixes", 0),
         "attempts": state.get("attempts"),
         "restarts": state.get("restarts", 0),
         "review_issues": state.get("review_issues", []),
@@ -509,7 +508,6 @@ def summarize_reports(records: list[dict]) -> list[dict]:
                 "zweryfikowane ostatecznie [%]": round(
                     100 * sum(bool(r["verified"]) for r in group) / len(group), 1
                 ),
-                "śr. poprawki analityków": _mean([r.get("analyst_fixes") for r in group]),
                 "śr. wersje redakcji": _mean([r.get("attempts") for r in group]),
                 "śr. problemy w 1. wersji": _mean(
                     [r["issue_counts"][0] for r in group if r.get("issue_counts")]
