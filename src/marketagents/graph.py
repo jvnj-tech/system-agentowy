@@ -274,7 +274,9 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
     def after_verification(state: ReportState) -> str:
         if state["verified"] and review and not state.get("reviewed"):
             return "editor_review"
-        if state["verified"] or state["attempts"] > MAX_FIXES + int(review):
+        # Poprawka po uwagach redaktora nie zmniejsza limitu poprawek błędów weryfikatora.
+        fixes = state["attempts"] - 1 - int(bool(state.get("review_issues")))
+        if state["verified"] or fixes >= MAX_FIXES:
             return "finalize"
         return "editor"
 

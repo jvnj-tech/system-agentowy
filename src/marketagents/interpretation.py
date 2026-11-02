@@ -392,6 +392,12 @@ def label(fact_id: str, facts: FactSheet) -> str | None:
         if value > RSI_HIGH:
             return "wykupienie"
         return "wyprzedanie" if value < RSI_LOW else "strefa neutralna"
+    if fact_id in ("macd", "macd_hist"):
+        hist = _numeric(facts, "macd_hist")
+        if not hist:
+            return None
+        side = "powyżej" if hist > 0 else "poniżej"
+        return f"linia MACD {side} linii sygnału"
     if DISTANCE.match(fact_id):
         diff = value
     elif AVERAGE.match(fact_id):

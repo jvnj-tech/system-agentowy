@@ -320,6 +320,29 @@ def test_editor_review_finds_section_error_and_report_is_fixed_once():
     assert len(llm.prompts) == 4  # bez drugiego sprawdzenia przez redaktora
 
 
+def test_review_fix_does_not_use_verifier_fix_limit():
+    wrong = "RSI wynosi 70,1." + END
+    llm = RecordingLLM(
+        responses=["Analiza.", "Raport {{close}}." + END, "- [Podsumowanie] „Raport”: ogólnik"]
+        + [wrong] * (MAX_FIXES + 1),
+        prompts=[],
+    )
+    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    # Pierwsza wersja, poprawka po uwagach redaktora i trzy poprawki błędów weryfikatora.
+    assert not state["verified"] and state["attempts"] == MAX_FIXES + 2
+    assert len(llm.prompts) == 3 + MAX_FIXES + 1
+
+
+def test_review_enabled_keeps_verifier_fix_limit():
+    llm = RecordingLLM(
+        responses=["Analiza."] + ["RSI wynosi 70,1." + END] * (MAX_FIXES + 2), prompts=[]
+    )
+    state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})
+    # Raport nie przeszedł weryfikacji, więc nie było przeglądu ani poprawki po nim.
+    assert not state["verified"] and state["attempts"] == MAX_FIXES + 1
+    assert len(llm.prompts) == 2 + MAX_FIXES
+
+
 def test_editor_review_without_remarks_finishes():
     llm = RecordingLLM(responses=["Analiza.", "Raport {{close}}." + END, "BRAK UWAG"], prompts=[])
     state = build_graph(llm, lambda t: MarketData(facts=TECH), review=True).invoke({"ticker": "T"})

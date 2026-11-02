@@ -90,6 +90,9 @@ def test_labels_in_prompt_table():
     assert label("sma_50", FACTS) == "kurs powyżej średniej"
     assert label("dist_sma_200", FACTS) == "kurs poniżej średniej"
     assert label("close", FACTS) is None
+    macd = FactSheet([Fact("macd", "MACD", 1.2), Fact("macd_hist", "histogram", -0.3)])
+    assert label("macd", macd) == "linia MACD poniżej linii sygnału"
+    assert label("macd_hist", macd) == "linia MACD poniżej linii sygnału"
     table = prompt_table(FACTS)
     assert "| {{change_1m}} | zmiana 1M | -3,2% | spadek |" in table
     assert "| {{close}} | kurs | 100,00 USD |  |" in table
