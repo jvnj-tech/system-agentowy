@@ -15,7 +15,7 @@ from marketagents.data.cache import DiskCache
 TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
 # Nowe sprawozdanie roczne pojawia się raz w roku, ale jego termin nie jest znany z góry.
-MAX_AGE = timedelta(days=7)
+MAX_AGE = timedelta(days=1)
 
 # Nazwa wskaźnika -> pojęcia us-gaap w kolejności preferencji (spółki raportują różnie,
 # a jedna spółka potrafi zmienić pojęcie między latami, np. NVIDIA w 2023 r.).

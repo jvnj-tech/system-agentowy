@@ -91,7 +91,7 @@ Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa pracy: pomijana j
 odpowiednia część analizy.
 
 Pobrane dane trafiają do katalogu `.cache/`. Notowania i wiadomości są pobierane ponownie
-po 6 godzinach, dane makro po dobie, a sprawozdania z SEC po tygodniu; gdy pobranie się nie
+po 6 godzinach, dane makro po dobie, a sprawozdania z SEC po dobie; gdy pobranie się nie
 uda, używane są zapisane dane, a ich data trafia do raportu. Po ustawieniu
 `MARKETAGENTS_OFFLINE=1` system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać
 testy na tym samym zbiorze.
@@ -137,8 +137,12 @@ przy składaniu raportu. Weryfikator sprawdza, czy:
 
 Karta faktów, którą dostaje model, ma kolumnę „ocena” z oceną słowną wyznaczoną przez kod
 (kierunek zmiany, strefa RSI, położenie kursu, układ średnich, szerokość wstęg).
-Analityk wiadomości dostaje tylko wiadomości, które wymieniają spółkę (nazwę lub symbol),
-oraz zmiany kursu z karty, żeby mógł wskazać, gdy opinia z artykułu przeczy danym.
+Analityk wiadomości dostaje tylko wiadomości z ostatnich 30 dni, które wymieniają spółkę
+(nazwę lub symbol), oraz zmiany kursu z karty, żeby mógł wskazać, gdy opinia z artykułu
+przeczy danym. Spośród nich kod wybiera najwyżej 15 według oceny ważność × aktualność:
+ważność zależy od rodzaju zdarzenia w nagłówku (np. wyniki, przejęcie, pozew, zmiana prezesa,
+dywidenda), obecności spółki w nagłówku i liczby serwisów piszących o tym samym, a waga
+aktualności maleje o połowę co 14 dni. Z kilku artykułów o tym samym zdarzeniu zostaje jeden.
 Na końcu raportu kod dopisuje zakres danych: daty notowań, sprawozdania rocznego, odczytów
 makro i wiadomości, ostrzeżenie, gdy notowania są starsze niż wiadomości, oraz listę
 brakujących wielkości.

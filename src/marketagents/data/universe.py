@@ -64,9 +64,11 @@ def parse_nasdaq(payload: dict) -> Universe:
         share_class = SHARE_CLASS.search(raw[company["ticker"]])
         if names.count(company["name"]) > 1 and share_class:
             company["name"] += f" (klasa {share_class.group(1)})"
-    if len(companies) < 90:
-        raise ValueError(f"Niepełna lista NASDAQ-100: {len(companies)} spółek")
-    return Universe(companies, _iso_date(data.get("date", "")), "api.nasdaq.com")
+    universe = Universe(companies, _iso_date(data.get("date", "")), "api.nasdaq.com")
+    # Indeks liczy zawsze 100 spółek; mniej oznacza niepełną odpowiedź serwisu.
+    if universe.company_count < 100:
+        raise ValueError(f"Niepełna lista NASDAQ-100: {universe.company_count} spółek")
+    return universe
 
 
 def _iso_date(text: str) -> str:

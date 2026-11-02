@@ -157,20 +157,23 @@ def test_universe_snapshot_loads_with_date():
 def test_universe_from_nasdaq_service_and_fallback(tmp_path):
     from marketagents.data.universe import clean_name, current, parse_nasdaq
 
-    rows = [{"symbol": f"T{i}", "companyName": f"Firma {i} Inc. Common Stock"} for i in range(95)]
+    rows = [{"symbol": f"T{i}", "companyName": f"Firma {i} Inc. Common Stock"} for i in range(98)]
     rows.append({"symbol": "asml", "companyName": "ASML Holding N.V. New York Registry Shares"})
     rows.append({"symbol": "GOOGL", "companyName": "Alphabet Inc. Class A Common Stock"})
     rows.append({"symbol": "GOOG", "companyName": "Alphabet Inc. Class C Capital Stock"})
     payload = {"data": {"date": "Oct 13, 2026", "data": {"rows": rows}}}
     index = parse_nasdaq(payload)
-    assert index.as_of == "2026-10-13" and len(index.companies) == 98
-    assert index.company_count == 97
+    assert index.as_of == "2026-10-13" and len(index.companies) == 101
+    assert index.company_count == 100
     assert {"ticker": "GOOG", "name": "Alphabet Inc. (klasa C)"} in index.companies
     assert {"ticker": "ASML", "name": "ASML Holding N.V."} in index.companies
     assert clean_name("Alphabet Inc. Class A Common Stock") == "Alphabet Inc."
     # Niepełna lista (np. zmieniony format odpowiedzi) jest odrzucana na rzecz kopii z pliku.
     with pytest.raises(ValueError):
         parse_nasdaq({"data": {"data": {"rows": rows[:10]}}})
+    # 100 notowań, ale 99 spółek (Alphabet ma dwie klasy akcji): lista jest niepełna.
+    with pytest.raises(ValueError):
+        parse_nasdaq({"data": {"data": {"rows": rows[1:]}}})
     cache = DiskCache(tmp_path)
     cache.json("universe", "nasdaq100", lambda: payload)
     assert current(cache).source == "api.nasdaq.com"
@@ -246,3 +249,26 @@ def test_news_filter_keeps_only_items_about_the_company():
     assert [i["headline"] for i in kept] == ["Starbucks denies takeover plan", "Chipotle falls"]
     # Symbol rozpoznawany tylko jako osobne słowo pisane wielkimi literami.
     assert not relevant_news([{"headline": "Pep talk", "summary": ""}], "PEP", None)
+
+
+def test_news_selection_weighs_importance_and_recency():
+    from marketagents.data.news import select_news
+
+    def item(day: int, headline: str, source: str = "Reuters") -> dict:
+        return {"published": f"2026-10-{day:02d} 12:00", "source": source, "headline": headline}
+
+    items = [
+        item(30, "Apple shares edge higher in morning trade"),
+        item(20, "Apple quarterly earnings beat estimates"),
+        item(21, "Apple earnings beat estimates on iPhone sales", "CNBC"),
+        item(29, "Stocks to watch this week include Apple"),
+    ]
+    chosen = select_news(items, "AAPL", "Apple Inc.", limit=2)
+    # Wyniki finansowe sprzed 10 dni wygrywają z ogólnym zestawieniem, a z dwóch
+    # artykułów o tym samym zdarzeniu zostaje jeden; wynik jest posortowany od najnowszych.
+    headlines = [n["headline"] for n in chosen]
+    assert len(headlines) == 2
+    assert sum("earnings" in h for h in headlines) == 1
+    assert headlines[0] == "Apple shares edge higher in morning trade"
+    assert "Stocks to watch this week include Apple" not in headlines
+    assert select_news([], "AAPL", None) == []

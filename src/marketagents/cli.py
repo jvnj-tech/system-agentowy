@@ -13,7 +13,7 @@ from marketagents.config import load_settings
 from marketagents.data.cache import DiskCache
 from marketagents.data.fundamentals import company_title, get_fundamentals
 from marketagents.data.macro import get_macro
-from marketagents.data.news import get_news, relevant_news
+from marketagents.data.news import get_news, relevant_news, select_news
 from marketagents.data.prices import get_prices
 from marketagents.data.universe import company_name
 from marketagents.facts import fundamental_facts, macro_facts, technical_facts
@@ -85,7 +85,7 @@ def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
         news["published"] = news["published"].dt.strftime("%Y-%m-%d %H:%M")
         name = company_name(ticker, cache) or company_title(cache, ticker, settings.sec_user_agent)
         data.company = name
-        data.news = relevant_news(news.to_dict("records"), ticker, name)
+        data.news = select_news(relevant_news(news.to_dict("records"), ticker, name), ticker, name)
     except Exception as exc:  # noqa: BLE001
         print(f"Pomijam newsy: {exc}")
     return data
