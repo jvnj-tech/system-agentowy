@@ -218,12 +218,11 @@ def verify(
     facts: FactSheet,
     allowed: frozenset[int] = DEFAULT_ALLOWED,
     news_count: int | None = None,
-    whole_text_is_news: bool = False,
     news: list[dict] | None = None,
     names: tuple[str, ...] = (),
 ) -> Verification:
     """news_count: liczba wiadomości na liście; gdy podana, sprawdzane są numery źródeł
-    w sekcji wiadomości raportu albo (whole_text_is_news) w całym tekście analizy newsów.
+    w sekcji wiadomości raportu.
     news: lista wiadomości; zdania z numerem źródła mogą wymieniać tylko nazwy z cytowanych
     wiadomości lub z nazw spółki (names). Prognozy bez podstaw są sprawdzane zawsze."""
     if news is not None and news_count is None:
@@ -261,7 +260,7 @@ def verify(
     bad: list[str] = []
     content = check_forecasts(text) + check_spelled_numbers(text)
     if news_count is not None:
-        part = text if whole_text_is_news else news_part(text)
+        part = news_part(text)
         if part.strip():
             uncited, bad = check_citations(part, news_count)
             if news:
