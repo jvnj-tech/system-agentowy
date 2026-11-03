@@ -1,37 +1,63 @@
 """Test kwalifikacyjny modelu językowego.
 
 Model trafia do puli modeli (LLM_MODELS) tylko wtedy, gdy na tych samych zapisanych danych
-napisze kompletne raporty, które przejdą weryfikację. Kryteria są te same dla każdego
+napisze raporty, które spełniają wymagania wobec modelu. Kryteria są te same dla każdego
 modelu, więc przełączenie na inny model po wyczerpaniu limitu nie obniża jakości raportu
-poniżej przyjętego progu:
+poniżej przyjętego progu. Każde kryterium odpowiada jednemu wymaganiu:
 
-1. każdy analityk, dla którego są dane, i redaktor zwracają niepustą odpowiedź,
-2. raport zawiera wszystkie sekcje (z ostatnią sekcją ograniczeń),
-3. po poprawkach w raporcie zostaje najwyżej MAX_MARKED oznaczeń (liczby, interpretacje,
-   brakujące źródła),
-4. raport powstaje w czasie nie dłuższym niż MAX_SECONDS.
+1. każdy analityk, dla którego są dane, i redaktor zwracają niepustą odpowiedź
+   (model obsługuje długie polecenia w ramach darmowego planu),
+2. raport zawiera wszystkie oczekiwane sekcje w wymaganej kolejności (stały układ),
+3. raport jest napisany po polsku: angielskie słowa funkcyjne stanowią najwyżej
+   MAX_ENGLISH_SHARE słów,
+4. weryfikator nie wymaga więcej niż MAX_FIXES poprawek, a po poprawkach zostaje najwyżej
+   MAX_MARKED oznaczeń (model przestrzega zasad i nie zużywa limitu na kolejne poprawki;
+   jedno oznaczenie to margines na regułę, która zgłosiła poprawne zdanie),
+5. raport powstaje w czasie nie dłuższym niż MAX_SECONDS (WN5).
 """
 
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime
 from pathlib import Path
 
 MAX_MARKED = 1
+# Najwyżej dwie z trzech dozwolonych poprawek błędów weryfikatora: model, który potrzebuje
+# wszystkich, przy jednym błędzie więcej oddałby raport z oznaczeniami.
+MAX_FIXES = 2
 MAX_SECONDS = 600
+MAX_ENGLISH_SHARE = 0.01
+# Angielskie słowa funkcyjne, które nie są słowami polskimi (bez „to”, „on”, „a”).
+ENGLISH_WORDS = frozenset(
+    "the and of is are was were with for that this from its has have which by be".split()
+)
 # Różne sytuacje: wzrost kursu (AAPL), spadek (LULU), straty i brak C/Z (INTC),
 # ujemny kapitał własny i brak marży brutto (SBUX).
 DEFAULT_TICKERS = ("AAPL", "LULU", "INTC", "SBUX")
 RESULTS_FILE = "kwalifikacja.json"
 
 
+def english_share(text: str) -> float:
+    """Udział angielskich słów funkcyjnych w tekście (0 dla tekstu po polsku)."""
+    words = re.findall(r"[^\W\d_]+", text.lower())
+    return sum(w in ENGLISH_WORDS for w in words) / len(words) if words else 0.0
+
+
+def verifier_fixes(state: dict) -> int:
+    """Liczba poprawek błędów weryfikatora (bez poprawki po przeglądzie redaktora)."""
+    attempts = state.get("attempts") or 1
+    return attempts - 1 - int(bool(state.get("review_issues")))
+
+
 def evaluate_state(state: dict, expected_analysts: int, elapsed: float) -> dict:
     """Wynik jednego raportu względem kryteriów."""
-    from marketagents.graph import LAST_SECTION
+    from marketagents.graph import section_issues
 
     draft = state.get("draft", "")
+    fixes = verifier_fixes(state)
     marked = (
         len(state.get("unverified", []))
         + len(state.get("flagged", []))
@@ -40,7 +66,10 @@ def evaluate_state(state: dict, expected_analysts: int, elapsed: float) -> dict:
     checks = {
         "odpowiedzi niepuste": bool(draft.strip())
         and len(state.get("analyses", {})) == expected_analysts,
-        "raport kompletny": LAST_SECTION in draft,
+        "raport kompletny": bool(draft.strip())
+        and not section_issues(draft, state.get("analyses", {})),
+        "po polsku": english_share(draft) <= MAX_ENGLISH_SHARE,
+        f"poprawki ≤ {MAX_FIXES}": fixes <= MAX_FIXES,
         f"oznaczenia ≤ {MAX_MARKED}": marked <= MAX_MARKED,
         f"czas ≤ {MAX_SECONDS} s": elapsed <= MAX_SECONDS,
     }
@@ -55,6 +84,7 @@ def evaluate_state(state: dict, expected_analysts: int, elapsed: float) -> dict:
             *state.get("uncited", []),
         ],
         "wersje redakcji": state.get("attempts"),
+        "poprawki": fixes,
         "czas_s": round(elapsed, 1),
     }
 

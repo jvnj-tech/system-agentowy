@@ -143,6 +143,14 @@ def test_qualification_criteria():
     assert not evaluate_state(too_many_marks, 2, 120)["zaliczony"]
     truncated = {**good, "draft": "## Podsumowanie\nTekst"}
     assert not evaluate_state(truncated, 2, 120)["zaliczony"]
+    lost_section = {**good, "analyses": {"techniczna": "x", "b": "y"}}
+    assert not evaluate_state(lost_section, 2, 120)["zaliczony"]
+    english = {**good, "draft": good["draft"].replace("Tekst.", "The price of the stock is up.")}
+    assert not evaluate_state(english, 2, 120)["zaliczony"]
+    all_fixes = {**good, "attempts": 4}
+    assert not evaluate_state(all_fixes, 2, 120)["zaliczony"]
+    fixes_and_review = {**good, "attempts": 4, "review_issues": ["uwaga"]}
+    assert evaluate_state(fixes_and_review, 2, 120)["zaliczony"]
 
 
 def test_usage_counter_sees_each_answer_once_with_model_name():
@@ -181,7 +189,7 @@ def test_qualification_resumes_after_daily_limit(monkeypatch):
     def fake_report(graph, ticker, *args, **kwargs):
         calls.append(ticker)
         return {
-            "draft": "## Podsumowanie\nA.\n## Ograniczenia analizy\nB.",
+            "draft": "## Podsumowanie\nA.\n## Analiza techniczna\nC.\n## Ograniczenia analizy\nB.",
             "analyses": {"techniczna": "x"},
             "attempts": 1,
         }
