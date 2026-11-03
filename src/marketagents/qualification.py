@@ -10,9 +10,11 @@ poniżej przyjętego progu. Każde kryterium odpowiada jednemu wymaganiu:
 2. raport zawiera wszystkie oczekiwane sekcje w wymaganej kolejności (stały układ),
 3. raport jest napisany po polsku: angielskie słowa funkcyjne stanowią najwyżej
    MAX_ENGLISH_SHARE słów,
-4. weryfikator nie wymaga więcej niż MAX_FIXES poprawek, a po poprawkach zostaje najwyżej
-   MAX_MARKED oznaczeń (model przestrzega zasad i nie zużywa limitu na kolejne poprawki;
-   jedno oznaczenie to margines na regułę, która zgłosiła poprawne zdanie),
+4. po poprawkach zostaje najwyżej MAX_MARKED oznaczeń (model przestrzega zasad; jedno
+   oznaczenie to margines na regułę, która zgłosiła poprawne zdanie), a średnia liczba
+   poprawek błędów weryfikatora we wszystkich spółkach nie przekracza MAX_MEAN_FIXES
+   (model nie zużywa limitu na kolejne poprawki; liczbę raportów w limicie dobowym
+   wyznacza średnie zużycie tokenów, więc jedna trudniejsza spółka nie wyklucza modelu),
 5. raport powstaje w czasie nie dłuższym niż MAX_SECONDS (WN5).
 """
 
@@ -25,9 +27,8 @@ from datetime import datetime
 from pathlib import Path
 
 MAX_MARKED = 1
-# Najwyżej dwie z trzech dozwolonych poprawek błędów weryfikatora: model, który potrzebuje
-# wszystkich, przy jednym błędzie więcej oddałby raport z oznaczeniami.
-MAX_FIXES = 2
+# Średnio najwyżej dwie z trzech dozwolonych poprawek błędów weryfikatora na raport.
+MAX_MEAN_FIXES = 2
 MAX_SECONDS = 600
 MAX_ENGLISH_SHARE = 0.01
 # Angielskie słowa funkcyjne, które nie są słowami polskimi (bez „to”, „on”, „a”).
@@ -69,7 +70,6 @@ def evaluate_state(state: dict, expected_analysts: int, elapsed: float) -> dict:
         "raport kompletny": bool(draft.strip())
         and not section_issues(draft, state.get("analyses", {})),
         "po polsku": english_share(draft) <= MAX_ENGLISH_SHARE,
-        f"poprawki ≤ {MAX_FIXES}": fixes <= MAX_FIXES,
         f"oznaczenia ≤ {MAX_MARKED}": marked <= MAX_MARKED,
         f"czas ≤ {MAX_SECONDS} s": elapsed <= MAX_SECONDS,
     }
@@ -155,8 +155,12 @@ def qualify(spec: str, settings, tickers=DEFAULT_TICKERS, done: dict | None = No
             # Niezaliczona spółka rozstrzyga test: pozostałych nie trzeba sprawdzać,
             # co oszczędza limit darmowego planu.
             break
+    passed = all(r["zaliczony"] for r in results.values())
+    fixes = [r["poprawki"] for r in results.values() if "poprawki" in r]
+    mean_fixes = sum(fixes) / len(fixes) if fixes else 0.0
     return {
-        "zaliczony": all(r["zaliczony"] for r in results.values()),
+        "zaliczony": passed and mean_fixes <= MAX_MEAN_FIXES,
+        "średnia poprawek": round(mean_fixes, 2),
         "data": datetime.now().isoformat(timespec="seconds"),
         "spółki": results,
     }

@@ -708,11 +708,16 @@ def _qualify(args, settings) -> None:
         if "powód" in result:
             print(f"  NIEZALICZONY: {result['powód']}", flush=True)
             continue
-        print(f"  {'ZALICZONY' if result['zaliczony'] else 'NIEZALICZONY'}", flush=True)
+        print(
+            f"  {'ZALICZONY' if result['zaliczony'] else 'NIEZALICZONY'}, "
+            f"średnia poprawek {result.get('średnia poprawek')}",
+            flush=True,
+        )
         for ticker, r in result["spółki"].items():
             failed = [k for k, ok in r["kryteria"].items() if not ok]
             print(
-                f"  {ticker}: {r['czas_s']} s, oznaczenia {r['oznaczenia']}"
+                f"  {ticker}: {r['czas_s']} s, poprawki {r.get('poprawki')}, "
+                f"oznaczenia {r['oznaczenia']}"
                 + (f", niespełnione: {', '.join(failed)}" if failed else ""),
                 flush=True,
             )

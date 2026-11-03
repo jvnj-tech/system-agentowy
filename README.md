@@ -84,9 +84,9 @@ uv run marketagents-eval kwalifikacja groq:qwen/qwen3.8-27b --spolki AAPL INTC
 Test uruchamia raporty dla AAPL (wzrost kursu), LULU (spadek), INTC (straty, brak C/Z)
 i SBUX (ujemny kapitał własny) na tych samych zapisanych danych (`wyniki/kwalifikacja_dane/`)
 i wymaga, by każdy agent zwrócił niepustą odpowiedź, raport miał wszystkie sekcje we właściwej
-kolejności i był napisany po polsku, weryfikator wymagał najwyżej dwóch poprawek, po poprawkach
-zostało w nim najwyżej jedno oznaczenie, a raport powstał w ciągu 10 minut. Wyniki trafiają
-do `wyniki/kwalifikacja.json`. Dopóki żaden model z listy nie był testowany, lista nie jest
+kolejności i był napisany po polsku, po poprawkach zostało w nim najwyżej jedno oznaczenie,
+a raport powstał w ciągu 10 minut. Weryfikator może wymagać średnio najwyżej dwóch poprawek
+na raport. Wyniki trafiają do `wyniki/kwalifikacja.json`. Dopóki żaden model z listy nie był testowany, lista nie jest
 zawężana; zmienna `LLM_REQUIRE_QUALIFIED=0` wyłącza ten warunek.
 Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa pracy: pomijana jest tylko
 odpowiednia część analizy.

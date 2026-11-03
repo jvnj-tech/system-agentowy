@@ -147,10 +147,9 @@ def test_qualification_criteria():
     assert not evaluate_state(lost_section, 2, 120)["zaliczony"]
     english = {**good, "draft": good["draft"].replace("Tekst.", "The price of the stock is up.")}
     assert not evaluate_state(english, 2, 120)["zaliczony"]
-    all_fixes = {**good, "attempts": 4}
-    assert not evaluate_state(all_fixes, 2, 120)["zaliczony"]
+    assert evaluate_state({**good, "attempts": 4}, 2, 120)["poprawki"] == 3
     fixes_and_review = {**good, "attempts": 4, "review_issues": ["uwaga"]}
-    assert evaluate_state(fixes_and_review, 2, 120)["zaliczony"]
+    assert evaluate_state(fixes_and_review, 2, 120)["poprawki"] == 2
 
 
 def test_usage_counter_sees_each_answer_once_with_model_name():
@@ -204,3 +203,27 @@ def test_qualification_resumes_after_daily_limit(monkeypatch):
     result = qualification.qualify("groq:x", SETTINGS, ("AAPL", "LULU", "INTC"), done)
     assert calls == ["INTC"]
     assert result["zaliczony"] and set(result["spółki"]) == {"AAPL", "LULU", "INTC"}
+
+
+def test_qualification_uses_mean_number_of_fixes(monkeypatch):
+    from marketagents import qualification
+
+    attempts = iter([4, 2, 4, 2])
+
+    def fake_report(graph, ticker, *args, **kwargs):
+        return {
+            "draft": "## Podsumowanie\nA.\n## Analiza techniczna\nC.\n## Ograniczenia analizy\nB.",
+            "analyses": {"techniczna": "x"},
+            "attempts": next(attempts),
+        }
+
+    monkeypatch.setattr("marketagents.graph.run_report", fake_report)
+    monkeypatch.setattr(qualification, "test_data", lambda s, t: None)
+    monkeypatch.setattr(qualification, "_expected_analysts", lambda data: 1)
+    monkeypatch.setattr("marketagents.graph.build_graph", lambda *args: None)
+    monkeypatch.setattr("marketagents.llm.make_model", lambda spec, settings: None)
+    monkeypatch.setattr("marketagents.llm.ModelPool", lambda **kw: None)
+    result = qualification.qualify("groq:x", SETTINGS, ("AAPL", "LULU", "INTC", "SBUX"))
+    assert result["zaliczony"] and result["średnia poprawek"] == 2.0
+    done = {t: {"zaliczony": True, "poprawki": 3} for t in ("AAPL", "LULU", "INTC", "SBUX")}
+    assert not qualification.qualify("groq:x", SETTINGS, tuple(done), done)["zaliczony"]
