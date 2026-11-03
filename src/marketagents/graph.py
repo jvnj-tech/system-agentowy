@@ -1,15 +1,16 @@
 """Graf agentów w LangGraph.
 
                  /-> analityk techniczny     -\
-dane -> fakty --+--> analityk fundamentalny --+-> redaktor -> weryfikator --(zgodne)--> koniec
-                 +-> analityk newsów         -+       ^              |
+dane -> fakty --+--> analityk fundamentalny --+-> redaktor -> weryfikator --(zgodne)--> przegląd
+                 +-> analityk newsów         -+       ^              |                 redaktora
                  \\-> analityk makro          -/       +--(błędy)-----+
 
 Analitycy działają równolegle; analityk, dla którego zabrakło danych, jest pomijany.
-Każda analiza jest od razu weryfikowana i w razie błędów raz poprawiana przez analityka.
-Analityk wiadomości dostaje ponumerowaną listę newsów o spółce i zmiany kursu z karty,
-a każde zdanie o wiadomościach musi wskazywać numer źródła. Opis zakresu danych
-w sekcji ograniczeń dopisuje kod.
+Weryfikator sprawdza raport złożony przez redaktora, a błędy poprawia redaktor (najwyżej
+MAX_FIXES razy). Po pozytywnej weryfikacji redaktor jeden raz przegląda raport, a poprawiony
+raport ponownie sprawdza weryfikator. Analityk wiadomości dostaje ponumerowaną listę newsów
+o spółce i zmiany kursu z karty, a każde zdanie o wiadomościach musi wskazywać numer źródła.
+Opis zakresu danych w sekcji ograniczeń dopisuje kod.
 """
 
 from __future__ import annotations

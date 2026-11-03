@@ -52,6 +52,7 @@ STEP_NAMES = {
     "macro_analyst": "analiza makro",
     "editor": "redakcja raportu",
     "verifier": "weryfikacja liczb",
+    "editor_review": "przegląd redaktora",
     "finalize": "składanie raportu",
 }
 
