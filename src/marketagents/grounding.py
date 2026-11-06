@@ -6,7 +6,8 @@ co da się uchwycić w samym tekście:
 1. Zdanie, które wskazuje wiadomość [n], może wymieniać tylko te nazwy własne (firmy,
    osoby, produkty, instytucje), które występują w nagłówku lub streszczeniu cytowanych
    wiadomości albo w nazwie analizowanej spółki. Nazwa spoza źródła oznacza treść
-   dopisaną przez model. Reguła nie rozumie sensu zdania: prawdziwa nazwa użyta
+   dopisaną przez model. Nazwa jest porównywana z całymi słowami źródła z dokładnością
+   do polskiej końcówki. Reguła nie rozumie sensu zdania: prawdziwa nazwa użyta
    w zmyślonym kontekście przejdzie.
 2. Zdanie nie może zawierać prognozy ani wniosku o przyszłym zachowaniu kursu
    („dalszy wzrost”, „przestrzeń do spadków”, „ryzyko korekty”), chyba że jest to
@@ -15,6 +16,7 @@ co da się uchwycić w samym tekście:
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass
 
@@ -100,7 +102,7 @@ COMMON = {
 # Opinia przypisana autorowi wiadomości jest dozwolona także wtedy, gdy dotyczy przyszłości.
 ATTRIBUTION = re.compile(
     r"\b(?:według|zdaniem|ocen\w*|uważa\w*|twierdz\w*|przewiduj\w*|prognozuj\w*|"
-    r"szacuj\w*|spodziewa\w*|oczekuj\w*|analityk\w*|analiz\w*|autor\w*|artykuł\w*)\b",
+    r"szacuj\w*|spodziewa\w*|oczekuj\w*|analityk\w*|autor\w*|artykuł\w*)\b",
     re.IGNORECASE,
 )
 FORECAST = re.compile(
@@ -131,6 +133,14 @@ SPELLED_NUMBER = re.compile(
 )
 
 
+# Krotność i ułamek zapisane słowem („dwukrotnie”, „podwoił”, „o połowę”) też są liczbą.
+MULTIPLE = re.compile(
+    r"\b(?:dwu|trzy|cztero|pięcio|sześcio|siedmio|ośmio|dziewięcio|dziesięcio|stu)krotn\w*"
+    r"|\bpo(?:dw|tr)o(?:i|j)\w*|\bo\s+połowę\b",
+    re.IGNORECASE,
+)
+
+
 @dataclass(frozen=True)
 class ContentIssue:
     sentence: str
@@ -146,10 +156,36 @@ def _short(sentence: str) -> str:
     return plain if len(plain) <= 90 else plain[:87] + "..."
 
 
-def stem(word: str) -> str:
-    """Początek słowa bez polskiej końcówki („Microsoftem” -> „microsof”)."""
-    word = word.lower().strip("’'-")
-    return word if len(word) <= 4 else word[: max(4, len(word) - 3)]
+def _base(word: str) -> str:
+    """Słowo bez końcówki dopisanej po apostrofie („Apple’a” -> „apple”)."""
+    return re.split(r"[’']", word.lower())[0].strip("-")
+
+
+def same_word(name: str, word: str) -> bool:
+    """Czy nazwa z raportu jest odmianą słowa ze źródła („Intela” i „Intel”).
+
+    Słowa muszą mieć wspólny początek, a różnić się mogą tylko końcówką: słowo ze źródła
+    najwyżej dwiema ostatnimi literami, nazwa w raporcie najwyżej trzema. Dzięki temu
+    „Nvidii” pasuje do „Nvidia”, a „Intel” nie pasuje do „interest”.
+    """
+    name, word = _base(name), _base(word)
+    if name == word:
+        return True
+    common = len(os.path.commonprefix([name, word]))
+    return common >= 3 and common >= len(word) - 2 and common >= len(name) - 3
+
+
+def source_words(text: str) -> set[str]:
+    """Słowa źródła, także części nazw pisanych z łącznikiem („Coca-Cola”, „Nvidia-backed”)."""
+    words = set(re.findall(r"[\w&’'-]+", text.lower()))
+    return words | {part for w in words for part in re.split(r"[-’']", w) if part}
+
+
+def known(name: str, words: set[str]) -> bool:
+    if any(same_word(name, w) for w in words):
+        return True
+    parts = [p for p in name.split("-") if p]
+    return len(parts) > 1 and all(any(same_word(p, w) for w in words) for p in parts)
 
 
 def proper_names(sentence: str) -> list[str]:
@@ -170,20 +206,22 @@ def proper_names(sentence: str) -> list[str]:
 def check_news_content(text: str, news: list[dict], allowed: list[str] = ()) -> list[ContentIssue]:
     """Nazwy własne w zdaniach z numerem źródła, których nie ma w cytowanych wiadomościach."""
     issues = []
-    allowed_stems = {stem(w) for name in allowed for w in re.findall(r"[\w&]+", name)}
+    allowed_words = source_words(" ".join(allowed))
     for sentence in sentences(text):
         cited = [int(n) for n in CITATION.findall(sentence) if 1 <= int(n) <= len(news)]
         if not cited:
             continue
-        source = " ".join(
-            f"{news[n - 1].get('headline', '')} {news[n - 1].get('summary', '')} "
-            f"{news[n - 1].get('source', '')}"
-            for n in cited
-        ).lower()
+        source = source_words(
+            " ".join(
+                f"{news[n - 1].get('headline', '')} {news[n - 1].get('summary', '')} "
+                f"{news[n - 1].get('source', '')}"
+                for n in cited
+            )
+        )
         missing = [
             w
             for w in proper_names(sentence)
-            if stem(w) not in allowed_stems and stem(w) not in source
+            if not known(w, allowed_words) and not known(w, source)
         ]
         if missing:
             numbers = "".join(f"[{n}]" for n in dict.fromkeys(cited))
@@ -200,9 +238,18 @@ def check_news_content(text: str, news: list[dict], allowed: list[str] = ()) -> 
 
 LIMITATIONS = "## Ograniczenia analizy"
 # Przeczenie przy czasowniku opisującym zakres analizy („nie uwzględnia zmian w najbliższym
-# okresie”); zaprzeczona prognoza („kurs nie spadnie”) nadal jest prognozą.
+# okresie”, „nie przesądza, czy kurs wzrośnie”) albo czasownik „pomija”; zaprzeczona
+# prognoza („kurs nie spadnie”) nadal jest prognozą.
 NEGATION = re.compile(
-    r"\bnie\s+(?:uwzględni\w*|obejmuj\w*|opisuj\w*|analizuj\w*|zawier\w*|bierze|biorą|dotycz\w*)",
+    r"\bnie\s+(?:uwzględni\w*|obejmuj\w*|opisuj\w*|analizuj\w*|zawier\w*|bierze|biorą|dotycz\w*"
+    r"|przewiduj\w*|prognozuj\w*|przesądz\w*|ocenia\w*)"
+    r"|\bpomij\w*",
+    re.IGNORECASE,
+)
+# Sekcja ograniczeń z natury wymienia to, czego raport nie obejmuje („ryzyko korekty”,
+# „zmiany w najbliższym okresie”), więc sprawdzane są w niej tylko prognozy wprost.
+FUTURE = re.compile(
+    r"\b(?:zapowiada|zwiastuje)\w*|\b(?:wzrośnie|wzrosną|spadnie|spadną|odbije|odbiją)\b",
     re.IGNORECASE,
 )
 
@@ -210,17 +257,21 @@ NEGATION = re.compile(
 def check_forecasts(text: str) -> list[ContentIssue]:
     """Prognozy i wnioski o przyszłym kursie, nieprzypisane autorowi wiadomości.
 
-    Pomijana jest sekcja ograniczeń (opisuje, czego raport nie uwzględnia, np. „zmian
-    w najbliższym okresie”) i zdania, w których sformułowanie stoi po przeczeniu czasownika
-    opisującego zakres analizy (np. „nie uwzględnia”).
+    W sekcji ograniczeń sprawdzane są tylko prognozy wprost („wzrośnie”, „zapowiada”),
+    bo sekcja opisuje, czego raport nie uwzględnia (np. „zmian w najbliższym okresie”).
+    Pomijane są zdania, w których sformułowanie stoi po przeczeniu czasownika opisującego
+    zakres analizy (np. „nie uwzględnia”).
     """
     issues = []
+    limits = ""
     start = text.find(LIMITATIONS)
     if start >= 0:
         end = text.find("\n## ", start + len(LIMITATIONS))
+        limits = text[start:end] if end >= 0 else text[start:]
         text = text[:start] + (text[end:] if end >= 0 else "")
-    for sentence in sentences(text):
-        match = FORECAST.search(sentence)
+    found = [(s, FORECAST.search(s)) for s in sentences(text)]
+    found += [(s, FUTURE.search(s)) for s in sentences(limits)]
+    for sentence, match in found:
         if not match or NEGATION.search(sentence[: match.start()]):
             continue
         if CITATION.search(sentence) and ATTRIBUTION.search(sentence):
@@ -239,7 +290,7 @@ def check_spelled_numbers(text: str) -> list[ContentIssue]:
     """Liczby zapisane słowami, którymi model omija zakaz wpisywania liczb."""
     issues = []
     for sentence in sentences(text):
-        match = SPELLED_NUMBER.search(sentence)
+        match = SPELLED_NUMBER.search(sentence) or MULTIPLE.search(sentence)
         if match:
             issues.append(
                 ContentIssue(

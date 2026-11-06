@@ -224,7 +224,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
         result = verify(
             state["draft"],
             facts,
-            news=state.get("news", []) if has_news else None,
+            news=state.get("news", []) if has_news else [],
             names=(state["ticker"], state.get("company", "")),
         )
         issues = result.issues() + section_issues(state["draft"], state.get("analyses", {}))

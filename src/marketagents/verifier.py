@@ -12,9 +12,11 @@ Działa bez modelu językowego, więc jej wynik jest powtarzalny. Sprawdza, czy:
    wstrzykniętych błędów pokazał, że podmiana na wartość sąsiedniego faktu (np. SMA(50)
    zamiast SMA(20)) przechodzi niezauważona. Zgodność z kartą służy tylko do podpowiedzi,
    którego odwołania użyć przy poprawce,
-3. lata w tekście odpowiadają datom z karty faktów, a data w formacie ISO występuje w karcie,
+3. lata w tekście odpowiadają datom z karty faktów, a data w formacie ISO występuje w karcie
+   (liczba z jednostką, np. „2025 USD”, jest sprawdzana jako liczba, a nie jako rok),
 4. słowny opis liczby i okres zmiany zgadzają się z kartą (moduł interpretation),
-5. każde zdanie o wiadomościach wskazuje źródło numerem z listy newsów, np. [2].
+5. każde zdanie o wiadomościach wskazuje źródło numerem z listy newsów, np. [2], a numer
+   w dowolnej sekcji raportu odpowiada wiadomości z listy.
 """
 
 from __future__ import annotations
@@ -178,11 +180,20 @@ def news_part(text: str) -> str:
     return body if end < 0 else body[:end]
 
 
+# Wiersze bez treści do potwierdzenia: nagłówek, pogrubiony tytuł akapitu, wprowadzenie
+# do listy („Najważniejsze wątki:”) i informacja o braku wiadomości.
+NOT_A_CLAIM = re.compile(
+    r"\s*(?:#|\*\*[^*]+\*\*:?\s*$|[^\n]*:\s*$|brak\s+(?:\w+\s+){0,2}(?:wiadomości|newsów)\b)"
+    r"|\W*$",
+    re.IGNORECASE,
+)
+
+
 def check_citations(text: str, count: int) -> tuple[list[str], list[str]]:
     """Zdania bez numeru źródła oraz numery spoza listy (1..count)."""
     uncited, bad = [], []
     for sentence in sentences(text):
-        if sentence.lstrip().startswith("#") or len(sentence.split()) < 4:
+        if NOT_A_CLAIM.match(sentence):
             continue
         numbers = CITATION.findall(sentence)
         if not numbers:
@@ -250,7 +261,12 @@ def sentences(text: str) -> list[str]:
 
 
 # Rok w tekście, np. „w 2025 r.” (bez dat ISO, które są usuwane wcześniej).
-YEAR = re.compile(r"(?<![\w.,-])(?:19|20)\d{2}(?![\w,.]?\d)")
+# Liczba z jednostką („2025 USD”, „2030 mld”) jest wartością, a nie rokiem.
+YEAR = re.compile(
+    r"(?<![\w.,-])(?:19|20)\d{2}(?![\w,.]?\d)"
+    r"(?!\s*(?:%|USD|\$|mld|mln|tys|pkt|punkt|p\.\s?p|proc|dolar|akcj))",
+    re.IGNORECASE,
+)
 
 
 def fact_years(facts: FactSheet) -> frozenset[int]:
@@ -279,8 +295,8 @@ def verify(
     news: list[dict] | None = None,
     names: tuple[str, ...] = (),
 ) -> Verification:
-    """news_count: liczba wiadomości na liście; gdy podana, sprawdzane są numery źródeł
-    w sekcji wiadomości raportu.
+    """news_count: liczba wiadomości na liście; gdy podana, w całym raporcie sprawdzane są
+    numery źródeł, a w sekcji wiadomości także to, czy każde zdanie wskazuje źródło.
     news: lista wiadomości; zdania z numerem źródła mogą wymieniać tylko nazwy z cytowanych
     wiadomości lub z nazw spółki (names). Prognozy bez podstaw są sprawdzane zawsze."""
     if news is not None and news_count is None:
@@ -319,11 +335,14 @@ def verify(
     bad: list[str] = []
     content = check_forecasts(text) + check_spelled_numbers(text)
     if news_count is not None:
+        # Przy pustej liście nie ma czego cytować, a każdy numer jest błędny.
         part = news_part(text)
-        if part.strip():
-            uncited, bad = check_citations(part, news_count)
-            if news:
-                content += check_news_content(part, news, names)
+        if part.strip() and news_count:
+            uncited, _ = check_citations(part, news_count)
+        # Numer spoza listy i nazwa spoza cytowanej wiadomości są błędem w każdej sekcji.
+        bad = sorted({n for n in CITATION.findall(text) if not 1 <= int(n) <= news_count}, key=int)
+        if news:
+            content += check_news_content(text, news, names)
     interpretations = check_interpretations(text, facts)
     flagged = {i.sentence for i in interpretations}
     interpretations += [

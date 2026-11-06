@@ -200,3 +200,29 @@ def test_iso_date_outside_fact_sheet_is_reported():
     assert result.wrong_dates == ["2026-07-15"] and not result.ok
     assert "Data 2026-07-15 nie występuje w karcie faktów" in result.issues()[0]
     assert result.to_mark == ["2026-07-15"]
+
+
+def test_citations_are_checked_in_every_section():
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    report = "## Podsumowanie\nPopyt słabnie [75].\n## Wiadomości\nNowy produkt [1]."
+    result = verify(report, facts, news_count=2)
+    assert result.bad_citations == ["75"]
+    # bez wiadomości każdy numer jest błędny, ale zdania nie muszą wskazywać źródła
+    result = verify("## Wiadomości\nBrak nowych wiadomości.\nZarząd milczy [1].", facts, news=[])
+    assert result.bad_citations == ["1"] and result.uncited == []
+
+
+def test_short_news_sentences_must_cite_a_source():
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    report = (
+        "## Wiadomości\n**Wyniki kwartalne**\nNajważniejsze wątki:\n"
+        "Intel przejmuje Nvidię. Nowy produkt [1].\nBrak innych wiadomości."
+    )
+    assert verify(report, facts, news_count=1).uncited == ["Intel przejmuje Nvidię."]
+
+
+def test_number_with_unit_is_not_taken_for_a_year():
+    facts = FactSheet([Fact("as_of", "data", "2026-10-01"), Fact("close", "kurs", 100.0, "USD")])
+    result = verify("Kurs wynosi 2025 USD, a kapitalizacja 2026 mld USD.", facts)
+    assert result.unverified_numbers == ["2025", "2026"] and result.wrong_years == []
+    assert verify("W 2025 r. kurs wynosił {{close}}.", facts).ok

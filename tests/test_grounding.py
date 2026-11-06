@@ -1,4 +1,4 @@
-from marketagents.grounding import check_forecasts, check_news_content, proper_names, stem
+from marketagents.grounding import check_forecasts, check_news_content, proper_names, same_word
 
 NEWS = [
     {
@@ -29,7 +29,30 @@ def test_names_must_appear_in_cited_news():
 
 def test_proper_name_extraction():
     assert proper_names("Nvidia ogłosiła współpracę z Danaher i LSEG [1].") == ["Danaher", "LSEG"]
-    assert stem("Microsoftem") == "microsof" and stem("Intela") == "inte"
+    assert same_word("Microsoftem", "microsoft") and same_word("Intela", "intel")
+    assert same_word("Nvidii", "nvidia") and same_word("Apple’a", "apple")
+    # wspólny początek nie wystarcza, gdy słowa różnią się czymś więcej niż końcówką
+    assert not same_word("Intel", "interest") and not same_word("Ford", "fordham")
+
+
+def test_name_matching_uses_whole_words_of_the_source():
+    news = [{"source": "Reuters", "headline": "Interest rates stay high", "summary": ""}]
+    # „Intel” nie może przejść tylko dlatego, że źródło zawiera słowo „interest”
+    assert check_news_content("Akcje spółki Intel tracą przez stopy [1].", news)
+    headline = "Nvidia-backed CoreWeave and Coca-Cola deal"
+    news = [{"source": "CNBC", "headline": headline, "summary": ""}]
+    assert not check_news_content("Firma CoreWeave wspierana przez Nvidię [1].", news)
+    assert not check_news_content("Umowa z Coca-Colą [1].", news)
+
+
+def test_names_are_checked_in_every_section():
+    from marketagents.facts import Fact, FactSheet
+    from marketagents.verifier import verify
+
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    text = "## Podsumowanie\nSpółka podpisała umowę z Amazonem [1].\n## Wiadomości\nChip Maia [1]."
+    result = verify(text, facts, news=NEWS, names=("INTC", "Intel Corporation"))
+    assert any("Amazonem" in i for i in result.issues())
 
 
 def test_forecasts_without_attribution():
@@ -49,6 +72,14 @@ def test_forecasts_without_attribution():
     assert check_forecasts("Kurs nie spadnie w najbliższym okresie.")
     assert check_forecasts("Nic nie zapowiada dalszego wzrostu.")
     assert not check_forecasts("## Ograniczenia analizy\nRaport pomija ryzyko korekty.")
+    assert not check_forecasts(
+        "## Ograniczenia analizy\nRaport nie uwzględnia zmian w najbliższym okresie "
+        "i nie przesądza, czy kurs wzrośnie."
+    )
+    # prognoza wprost w sekcji ograniczeń nadal jest prognozą
+    assert check_forecasts("## Ograniczenia analizy\nKurs wzrośnie po publikacji wyników.")
+    # słowo „analiza” nie przypisuje prognozy autorowi wiadomości
+    assert check_forecasts("Analiza wiadomości [1] wskazuje na dalszy wzrost.")
 
 
 def test_numbers_written_as_words():
@@ -59,3 +90,7 @@ def test_numbers_written_as_words():
     assert check_spelled_numbers("Nvidia przekaże dwieście pięćdziesiąt milionów dolarów [3].")
     assert not check_spelled_numbers("Spółka ogłosiła dwa nowe produkty [1].")
     assert not check_spelled_numbers("Sprzedaż wyraźnie spadła [4].")
+    assert check_spelled_numbers("Zysk wzrósł dwukrotnie [2].")
+    assert check_spelled_numbers("Spółka podwoiła sprzedaż chipów [1].")
+    assert check_spelled_numbers("Popyt spadł o połowę [3].")
+    assert not check_spelled_numbers("Spółka wielokrotnie podkreślała popyt [1].")

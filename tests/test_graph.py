@@ -9,7 +9,7 @@ MACROS = [Fact("macro_10y", "rentowność 10Y", 4.12, "%", 2, MACRO)]
 # Wszystkie sekcje raportu: graf zgłasza brakującą sekcję jako błąd do poprawy.
 HEADS = (
     "\n## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak.\n## Analiza fundamentalna\nTak."
-    "\n## Wiadomości\nTak.\n## Otoczenie makroekonomiczne\nTak."
+    "\n## Wiadomości\nBrak nowych wiadomości.\n## Otoczenie makroekonomiczne\nTak."
 )
 END = HEADS + f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
 NEWS = [{"published": "2026-10-01 14:00", "source": "Reuters", "headline": "Nowy produkt"}]
