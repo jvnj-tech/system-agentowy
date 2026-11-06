@@ -91,8 +91,8 @@ zawężana; zmienna `LLM_REQUIRE_QUALIFIED=0` wyłącza ten warunek.
 Brak klucza do Finnhub, FRED lub `SEC_USER_AGENT` nie przerywa pracy: pomijana jest tylko
 odpowiednia część analizy.
 
-Pobrane dane trafiają do katalogu `.cache/`. Notowania i wiadomości są pobierane ponownie
-po 6 godzinach, dane makro po dobie, a sprawozdania z SEC po dobie; gdy pobranie się nie
+Pobrane dane trafiają do katalogu `.cache/`. Notowania są pobierane ponownie po
+6 godzinach, wiadomości po godzinie, dane makro po dobie, a sprawozdania z SEC po dobie; gdy pobranie się nie
 uda, używane są zapisane dane, a ich data trafia do raportu. Po ustawieniu
 `MARKETAGENTS_OFFLINE=1` system korzysta wyłącznie z zapisanych danych, co pozwala powtarzać
 testy na tym samym zbiorze.

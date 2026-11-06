@@ -199,14 +199,20 @@ def check_news_content(text: str, news: list[dict], allowed: list[str] = ()) -> 
 
 
 LIMITATIONS = "## Ograniczenia analizy"
-NEGATION = re.compile(r"\bnie\b", re.IGNORECASE)
+# Przeczenie przy czasowniku opisującym zakres analizy („nie uwzględnia zmian w najbliższym
+# okresie”); zaprzeczona prognoza („kurs nie spadnie”) nadal jest prognozą.
+NEGATION = re.compile(
+    r"\bnie\s+(?:uwzględni\w*|obejmuj\w*|opisuj\w*|analizuj\w*|zawier\w*|bierze|biorą|dotycz\w*)",
+    re.IGNORECASE,
+)
 
 
 def check_forecasts(text: str) -> list[ContentIssue]:
     """Prognozy i wnioski o przyszłym kursie, nieprzypisane autorowi wiadomości.
 
     Pomijana jest sekcja ograniczeń (opisuje, czego raport nie uwzględnia, np. „zmian
-    w najbliższym okresie”) i zdania, w których sformułowanie stoi po przeczeniu.
+    w najbliższym okresie”) i zdania, w których sformułowanie stoi po przeczeniu czasownika
+    opisującego zakres analizy (np. „nie uwzględnia”).
     """
     issues = []
     start = text.find(LIMITATIONS)

@@ -45,6 +45,9 @@ def test_forecasts_without_attribution():
     assert not check_forecasts("Kurs wzrósł w ostatnim miesiącu o {{change_1m}}.")
     # sekcja ograniczeń i przeczenia opisują, czego raport nie obejmuje
     assert not check_forecasts("Dane nie uwzględniają zmian w najbliższym okresie.")
+    # zaprzeczona prognoza nadal jest prognozą
+    assert check_forecasts("Kurs nie spadnie w najbliższym okresie.")
+    assert check_forecasts("Nic nie zapowiada dalszego wzrostu.")
     assert not check_forecasts("## Ograniczenia analizy\nRaport pomija ryzyko korekty.")
 
 

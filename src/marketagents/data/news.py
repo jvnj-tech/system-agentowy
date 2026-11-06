@@ -12,8 +12,9 @@ from marketagents.data.cache import DiskCache
 
 URL = "https://finnhub.io/api/v1/company-news"
 NEWS_COLUMNS = ["published", "source", "headline", "summary", "url"]
-# Newsy z bieżącego dnia przybywają, więc lista jest pobierana ponownie po kilku godzinach.
-MAX_AGE = timedelta(hours=6)
+# Newsy z bieżącego dnia przybywają i mogą dotyczyć nagłych zdarzeń, więc lista jest
+# pobierana ponownie po godzinie.
+MAX_AGE = timedelta(hours=1)
 
 
 def normalize_news(items: list[dict]) -> pd.DataFrame:
