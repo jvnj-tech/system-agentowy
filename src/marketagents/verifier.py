@@ -2,8 +2,11 @@
 
 Działa bez modelu językowego, więc jej wynik jest powtarzalny. Sprawdza, czy:
 1. każde odwołanie {{identyfikator}} wskazuje istniejący fakt,
-2. w tekście nie ma liczb wpisanych poza odwołaniami, z wyjątkiem okresów wskaźników
-   (np. „RSI(14)”), liczb z opisów faktów i nazw indeksów. Liczba wpisana wprost jest
+2. w tekście nie ma liczb wpisanych poza odwołaniami, z wyjątkiem okresów stojących przy
+   nazwie wskaźnika (np. „RSI(14)”) albo przed jednostką czasu („z 52 tygodni”) i nazw
+   indeksów. Ta sama liczba w innym miejscu („wzrósł o 20%”) jest błędem, a liczba
+   w złożeniu słownym („5-procentowy”) tylko wtedy nie jest, gdy jest okresem albo
+   pochodzi z opisu faktu („10-letnich”). Liczba wpisana wprost jest
    błędem nawet wtedy, gdy równa się wartości z karty, bo nie wiadomo, której wielkości
    dotyczy: przy dopuszczeniu liczb zgodnych z faktem z tego samego zdania test
    wstrzykniętych błędów pokazał, że podmiana na wartość sąsiedniego faktu (np. SMA(50)
@@ -28,11 +31,14 @@ PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 # Model czasem otacza odwołanie znakami ` jak kod; przy podstawianiu są one usuwane.
 PLACEHOLDER_IN_CODE = re.compile(r"`\{\{\s*([A-Za-z0-9_]+)\s*\}\}`")
 # Liczba w zapisie polskim lub angielskim, z opcjonalnym separatorem tysięcy (spacja).
-# Pomijane są liczby w złożeniach słownych, np. „10-letnie obligacje”.
+# Liczby w złożeniach słownych, np. „10-letnie obligacje”, sprawdza osobno wzorzec COMPOUND.
 NUMBER = re.compile(
     r"(?<![\w.,])[-−+]?\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?(?![\w])"
     r"|(?<![\w.,])[-−+]?\d+(?:[.,]\d+)?(?![\w]|-[^\W\d])"
 )
+# Liczba w złożeniu słownym („10-letnich”, „5-procentowy”); dopuszczalna tylko wtedy, gdy jest
+# okresem albo liczbą z opisu faktu. Pomijane są nazwy formularzy SEC („10-K”, „10-Q”).
+COMPOUND = re.compile(r"(?<![\w.,−+-])\d+(?=-[^\W\d])(?!-[KQ]\b)")
 ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # Odwołanie do wiadomości z listy newsów, np. [3].
 CITATION = re.compile(r"\[(\d{1,2})\]")
@@ -53,6 +59,20 @@ ABBREVIATION = re.compile(
 
 # Okresy wskaźników, które mogą wystąpić w tekście jako nazwy, np. „RSI(14)”, „SMA 200”.
 DEFAULT_ALLOWED = frozenset({2, 9, 12, 14, 20, 26, 50, 52, 200})
+# Okres jest dopuszczany tylko przy nazwie wskaźnika („RSI(14)”, „SMA 50 i 200”,
+# „Bollingera (20, 2)”) albo przed jednostką czasu („z 52 tygodni”, „3 miesiące”).
+# Bez tego warunku liczba równa okresowi przechodziłaby także jako wartość („wzrósł o 20%”).
+INDICATOR_NAME = r"(?:RSI|SMA|EMA|MACD|Bollinger\w*|sygnał\w*|średni\w*)"
+PERIOD_NUMBER = r"\d+(?![.,]\d|\s*%)"
+NAMED_PERIODS = re.compile(
+    rf"(?<!\w){INDICATOR_NAME}\s*(?:\(\s*\d+(?:\s*,\s*\d+)*\s*\)"
+    rf"|{PERIOD_NUMBER}(?:(?:\s*,\s*|\s+(?:i|oraz)\s+){PERIOD_NUMBER})*)",
+    re.IGNORECASE,
+)
+PERIOD_BEFORE_UNIT = re.compile(
+    r"(?<![\w.,])\d+(?=\s*(?:sesj|dni\b|dzie|tygod|miesi|mies\.|lat|rok|kwarta|odchyle))",
+    re.IGNORECASE,
+)
 # Okna średnich ustawiane przez użytkownika są odczytywane z identyfikatorów faktów (sma_30).
 PERIOD_IN_ID = re.compile(r"^(?:sma|ema|dist_sma)_(\d+)$")
 
@@ -180,6 +200,29 @@ def matches_fact(value: float, fact: Fact) -> bool:
     return float(value).is_integer() and abs(abs(value) - abs(fact.value)) < 0.5
 
 
+def strip_periods(text: str, allowed: frozenset[int]) -> str:
+    """Usuwa okresy z dozwolonego zbioru, gdy stoją przy nazwie wskaźnika lub przed
+    jednostką czasu. Pozostałe liczby, także równe okresom, zostają do sprawdzenia."""
+
+    def drop(match: re.Match) -> str:
+        return re.sub(
+            r"\d+", lambda n: " " if int(n.group(0)) in allowed else n.group(0), match.group(0)
+        )
+
+    text = NAMED_PERIODS.sub(drop, text)
+    return PERIOD_BEFORE_UNIT.sub(drop, text)
+
+
+def numbers_to_check(text: str, allowed: frozenset[int]) -> list[str]:
+    """Liczby wpisane wprost w kolejności występowania, po usunięciu okresów i dat."""
+    text = strip_periods(text, allowed)
+    found = [(m.start(), m.group(0)) for m in NUMBER.finditer(text)]
+    found += [
+        (m.start(), m.group(0)) for m in COMPOUND.finditer(text) if int(m.group(0)) not in allowed
+    ]
+    return [raw for _, raw in sorted(found)]
+
+
 def label_numbers(facts: FactSheet) -> frozenset[int]:
     """Liczby całkowite z opisów faktów, np. „3 miesiącach”, „10-letnich obligacji”."""
     return frozenset(int(raw) for fact in facts for raw in re.findall(r"\d+", fact.label))
@@ -241,12 +284,8 @@ def verify(
         stripped = INDEX_NAME.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", sentence)))
         stripped = CITATION.sub(" ", stripped)
         wrong_years += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
-        for match in NUMBER.finditer(YEAR.sub(" ", stripped)):
-            raw = match.group(0)
+        for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed):
             checked += 1
-            # Okres wskaźnika to liczba całkowita bez znaku („SMA 50”), a nie np. „50,0”.
-            if raw.isdigit() and int(raw) in allowed:
-                continue
             unverified.append(raw)
             value = parse_number(raw)
             same = next((f for f in referenced if matches_fact(value, f)), None)

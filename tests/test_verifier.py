@@ -94,8 +94,10 @@ def test_unit_repeated_after_placeholder_is_not_duplicated():
     assert result.rendered == "Kurs 1 234,56 USD, zmiana -3,2%, RSI 61,2 USD."
 
 
-def test_number_in_compound_word_is_ignored():
-    assert verify("Rentowność 10-letnich obligacji i 3-miesięczny trend.", FACTS).ok
+def test_number_in_compound_word_is_allowed_only_for_periods_and_labels():
+    facts = FactSheet([*FACTS, Fact("macro_10y", "rentowność 10-letnich obligacji USA", 4.1, "%")])
+    assert verify("Rentowność 10-letnich obligacji, 200-sesyjna średnia, raport 10-K.", facts).ok
+    assert verify("Kurs zaliczył 5-procentowy wzrost.", facts).unverified_numbers == ["5"]
     assert not verify("Wzrost o 10-15%.", FACTS).ok
 
 
@@ -175,3 +177,18 @@ def test_news_sentences_must_cite_existing_items():
 def test_index_names_with_narrow_spaces_are_not_numbers():
     facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
     assert verify("Wycena jest niższa niż mediana S&P 500 i NASDAQ 100.", facts).ok
+
+
+def test_period_number_used_as_value_is_reported():
+    assert verify("Kurs wzrósł o 20%.", FACTS).unverified_numbers == ["20"]
+    assert verify("RSI wynosi 50, a kurs {{close}}.", FACTS).unverified_numbers == ["50"]
+    facts = FactSheet([Fact("change_3m", "zmiana kursu w ostatnich 3 miesiącach", 5.0, "%", 1)])
+    assert verify("W ciągu 3 miesięcy kurs wzrósł o 3%.", facts).unverified_numbers == ["3"]
+
+
+def test_periods_next_to_indicator_names_and_time_units_are_allowed():
+    text = (
+        "Średnie SMA 50 i 200 oraz EMA(20), wstęgi Bollingera (20, 2), linia sygnału (9). "
+        "Zakres z 52 tygodni, średnia z 200 sesji i zmiana w ciągu 12 miesięcy."
+    )
+    assert verify(text, FACTS).ok
