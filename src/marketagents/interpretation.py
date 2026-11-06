@@ -13,7 +13,8 @@ z 52 tygodni, układ średnich, odległość od średniej na tle historii, szero
 MACD względem linii sygnału), wyznacza kod przy tworzeniu karty faktów. Reguły poniżej
 sprawdzają, czy słowa w tekście się z nimi zgadzają. Sprawdzane są też zdania, które
 opisują zmianę w czasie (wzrost, utrzymywanie się, kontynuację) wielkości podanej w karcie
-jednym odczytem, bez faktu o jej zmianie.
+jednym odczytem, bez faktu o jej zmianie, oraz odwołania stojące przy nazwie innego
+wskaźnika („SMA(50) wynosi {{sma_200}}”).
 """
 
 from __future__ import annotations
@@ -353,6 +354,68 @@ def _check_band_width(
     return None
 
 
+# Nazwa wskaźnika tuż przed odwołaniem („SMA(50) wynosi {{sma_50}}”) i fakty, do których
+# może się ono odnosić. Odwołanie do innego wskaźnika („SMA(50) wynosi {{sma_200}}”) podaje
+# wartość z karty, ale nie tej wielkości, o której mówi zdanie.
+INDICATOR_MENTION = re.compile(
+    r"\b(?P<avg>SMA|EMA)\s*\(?\s*(?P<periods>\d+(?:\s*(?:,|i|oraz)\s*\d+)*)\s*\)?"
+    r"|\b(?P<rsi>RSI)\b|\b(?P<signal>sygnał\w*)|\b(?P<hist>histogram\w*)|\b(?P<macd>MACD)\b"
+    r"|\b(?P<upper>górn\w*)\s+wstęg\w*|\b(?P<lower>doln\w*)\s+wstęg\w*",
+    re.IGNORECASE,
+)
+INDICATOR_FACT = re.compile(r"^(?:(?:dist_)?sma_\d+|ema_\d+|rsi_14|macd\w*|bb_(?:upper|lower))$")
+MAX_GAP = 30
+NAME_JOIN = re.compile(r"\s*(?:,|i|oraz)\s*", re.IGNORECASE)
+
+
+def _mentioned_facts(match: re.Match) -> tuple[str, set[str]]:
+    """Nazwa wskaźnika z tekstu i identyfikatory faktów, które mogą jej odpowiadać."""
+    if match["avg"]:
+        kind = match["avg"].lower()
+        periods = re.findall(r"\d+", match["periods"])
+        ids = {f"{kind}_{n}" for n in periods}
+        if kind == "sma":
+            ids |= {f"dist_sma_{n}" for n in periods}
+        return match.group(0).strip(), ids
+    if match["rsi"]:
+        return "RSI", {"rsi_14"}
+    if match["signal"]:
+        return "linia sygnału", {"macd_signal"}
+    if match["hist"]:
+        return "histogram MACD", {"macd_hist"}
+    if match["macd"]:
+        return "MACD", {"macd", "macd_signal", "macd_hist"}
+    if match["upper"]:
+        return "górna wstęga", {"bb_upper"}
+    return "dolna wstęga", {"bb_lower"}
+
+
+def _check_indicator_ref(
+    sentence: str, refs: list[str], facts: FactSheet
+) -> InterpretationIssue | None:
+    """Odwołanie stojące zaraz po nazwie wskaźnika musi dotyczyć tego wskaźnika."""
+    start = 0
+    for ref in PLACEHOLDER.finditer(sentence):
+        before, start = sentence[start : ref.start()], ref.end()
+        fact_id = ref.group(1)
+        if fact_id not in facts or not INDICATOR_FACT.match(fact_id):
+            continue
+        mentions = list(INDICATOR_MENTION.finditer(before))
+        if not mentions or len(before) - mentions[-1].end() > MAX_GAP:
+            continue
+        # Kilka nazw wymienionych razem („RSI i MACD wynoszą {{rsi_14}} i {{macd}}”).
+        named = [mentions.pop()]
+        while mentions and NAME_JOIN.fullmatch(before[mentions[-1].end() : named[-1].start()]):
+            named.append(mentions.pop())
+        found = [_mentioned_facts(m) for m in reversed(named)]
+        name = " i ".join(n for n, _ in found)
+        expected = set().union(*(ids for _, ids in found))
+        if fact_id not in expected:
+            why = f"odwołanie stoi przy nazwie „{name}”, a dotyczy innego wskaźnika"
+            return _issue(sentence, fact_id, facts, why)
+    return None
+
+
 def periods_in(words: str) -> list[str]:
     """Okresy wymienione w tekście, np. [„rok”] dla „w ostatnim roku”."""
     found = []
@@ -424,6 +487,7 @@ def prompt_table(facts: FactSheet) -> str:
 # Reguły dla zdań z odwołaniami oraz reguły, które sprawdzają opis także bez odwołania
 # (np. „kurs jest blisko dolnej wstęgi” bez podania wartości).
 CHECKS_WITH_REFS = (
+    _check_indicator_ref,
     _check_direction,
     _check_rsi,
     _check_position,

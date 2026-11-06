@@ -201,3 +201,33 @@ def test_direction_words_beyond_rise_and_fall():
     assert check_interpretations("Przychody zwiększyły się o {{fy_revenue_growth}}.", facts)
     assert check_interpretations("Fed obniżył stopy o {{macro_fed_rate_change_12m}}.", facts)
     assert not check_interpretations("Przychody zmniejszyły się o {{fy_revenue_growth}}.", facts)
+
+
+def test_reference_must_match_the_indicator_named_before_it():
+    from marketagents.facts import Fact, FactSheet
+    from marketagents.interpretation import check_interpretations
+
+    facts = FactSheet(
+        [
+            Fact("close", "kurs", 100.0, "USD"),
+            Fact("sma_50", "SMA(50)", 95.0, "USD", 2),
+            Fact("sma_200", "SMA(200)", 90.0, "USD", 2),
+            Fact("dist_sma_200", "odległość od SMA(200)", 11.1, "%", 1),
+            Fact("rsi_14", "RSI(14)", 55.0, "", 1),
+            Fact("macd", "MACD", 1.2, "", 2),
+            Fact("macd_signal", "sygnał", 0.8, "", 2),
+            Fact("bb_upper", "górna wstęga", 110.0, "USD", 2),
+            Fact("bb_lower", "dolna wstęga", 90.0, "USD", 2),
+        ]
+    )
+    assert check_interpretations("SMA(50) wynosi {{sma_200}}.", facts)
+    assert check_interpretations("RSI wynosi {{macd}}.", facts)
+    assert check_interpretations("Górna wstęga Bollingera leży na {{bb_lower}}.", facts)
+    ok = (
+        "Kurs {{close}} jest powyżej SMA(50) {{sma_50}} i SMA(200) na poziomie {{sma_200}}. "
+        "Średnie SMA 50 i 200 wynoszą {{sma_50}} i {{sma_200}}. "
+        "Odległość od SMA(200) wynosi {{dist_sma_200}}, a RSI {{rsi_14}}. "
+        "Linia MACD {{macd}} jest nad linią sygnału {{macd_signal}}. "
+        "RSI i MACD wynoszą {{rsi_14}} i {{macd}}."
+    )
+    assert not check_interpretations(ok, facts)
