@@ -67,6 +67,7 @@ from marketagents.verifier import (
     LIST_MARKER,
     PLACEHOLDER,
     YEAR,
+    fact_dates,
     fact_years,
     indicator_periods,
     label_numbers,
@@ -141,9 +142,11 @@ def unsupported_numbers(text: str, facts: FactSheet) -> list[str]:
     years = fact_years(facts)
     # Opis zakresu danych dopisuje kod, a odnośniki do wiadomości zawierają daty i adresy.
     text = MARKDOWN_LINK.sub(" ", text.split(NOTE_PREFIX)[0])
+    dates = fact_dates(facts)
+    out = [d for d in ISO_DATE.findall(PLACEHOLDER.sub(" ", text)) if d not in dates]
     stripped = DMY_DATE.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
     stripped = LIST_MARKER.sub(" ", INDEX_NAME.sub(" ", stripped))
-    out = [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
+    out += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
     for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed):
         if not any(matches_fact(parse_number(raw), fact) for fact in facts):
             out.append(raw)

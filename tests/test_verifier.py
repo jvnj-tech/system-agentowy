@@ -192,3 +192,11 @@ def test_periods_next_to_indicator_names_and_time_units_are_allowed():
         "Zakres z 52 tygodni, średnia z 200 sesji i zmiana w ciągu 12 miesięcy."
     )
     assert verify(text, FACTS).ok
+
+
+def test_iso_date_outside_fact_sheet_is_reported():
+    assert verify("Stan na 2026-10-01, kurs {{close}}.", FACTS).ok
+    result = verify("Spółka ogłosiła wyniki 2026-07-15.", FACTS)
+    assert result.wrong_dates == ["2026-07-15"] and not result.ok
+    assert "Data 2026-07-15 nie występuje w karcie faktów" in result.issues()[0]
+    assert result.to_mark == ["2026-07-15"]

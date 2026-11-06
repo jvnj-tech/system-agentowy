@@ -12,7 +12,7 @@ Działa bez modelu językowego, więc jej wynik jest powtarzalny. Sprawdza, czy:
    wstrzykniętych błędów pokazał, że podmiana na wartość sąsiedniego faktu (np. SMA(50)
    zamiast SMA(20)) przechodzi niezauważona. Zgodność z kartą służy tylko do podpowiedzi,
    którego odwołania użyć przy poprawce,
-3. lata w tekście odpowiadają datom z karty faktów,
+3. lata w tekście odpowiadają datom z karty faktów, a data w formacie ISO występuje w karcie,
 4. słowny opis liczby i okres zmiany zgadzają się z kartą (moduł interpretation),
 5. każde zdanie o wiadomościach wskazuje źródło numerem z listy newsów, np. [2].
 """
@@ -87,6 +87,8 @@ class Verification:
     unknown_ids: list[str] = field(default_factory=list)
     unverified_numbers: list[str] = field(default_factory=list)
     wrong_years: list[str] = field(default_factory=list)
+    # Daty w formacie ISO, których nie ma w karcie faktów (np. zmyślona data wydarzenia).
+    wrong_dates: list[str] = field(default_factory=list)
     interpretations: list[InterpretationIssue] = field(default_factory=list)
     checked_numbers: int = 0
     # Liczba wpisana wprost -> fakt o tej wartości (podpowiedź dla autora tekstu).
@@ -104,6 +106,7 @@ class Verification:
             self.unknown_ids
             or self.unverified_numbers
             or self.wrong_years
+            or self.wrong_dates
             or self.interpretations
             or self.uncited
             or self.bad_citations
@@ -117,7 +120,7 @@ class Verification:
     @property
     def to_mark(self) -> list[str]:
         """Wartości, które trzeba oznaczyć w tekście, jeśli nie zostaną poprawione."""
-        return self.unverified_numbers + self.wrong_years
+        return self.unverified_numbers + self.wrong_years + self.wrong_dates
 
     def issues(self) -> list[str]:
         out = [f"Nieznany identyfikator faktu: {{{{{i}}}}}" for i in self.unknown_ids]
@@ -142,6 +145,11 @@ class Verification:
             f"Rok {y} nie odpowiada żadnej dacie w karcie faktów; "
             "sprawdź okres, którego dotyczy zdanie"
             for y in self.wrong_years
+        ]
+        out += [
+            f"Data {d} nie występuje w karcie faktów; wstaw odwołanie do daty z karty "
+            "albo usuń datę"
+            for d in self.wrong_dates
         ]
         out += [i.message for i in self.interpretations]
         out += [
@@ -256,6 +264,13 @@ def fact_years(facts: FactSheet) -> frozenset[int]:
     return frozenset(years)
 
 
+def fact_dates(facts: FactSheet) -> frozenset[str]:
+    """Daty zapisane w karcie faktów (ostatnia sesja, koniec roku obrotowego, odczyty makro)."""
+    return frozenset(
+        f.value for f in facts if isinstance(f.value, str) and ISO_DATE.fullmatch(f.value)
+    )
+
+
 def verify(
     text: str,
     facts: FactSheet,
@@ -273,14 +288,19 @@ def verify(
     allowed = allowed | indicator_periods(facts) | label_numbers(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
     years = fact_years(facts)
+    dates = fact_dates(facts)
 
     wrong_years: list[str] = []
+    wrong_dates: list[str] = []
     unverified: list[str] = []
     suggestions: dict[str, str] = {}
     repeated: list[str] = []
     checked = 0
     for sentence in sentences(LIST_MARKER.sub(" ", text)):
         referenced = [facts[i] for i in PLACEHOLDER.findall(sentence) if i in facts]
+        wrong_dates += [
+            d for d in ISO_DATE.findall(PLACEHOLDER.sub(" ", sentence)) if d not in dates
+        ]
         stripped = INDEX_NAME.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", sentence)))
         stripped = CITATION.sub(" ", stripped)
         wrong_years += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
@@ -315,6 +335,7 @@ def verify(
         unknown_ids=unknown,
         unverified_numbers=unverified,
         wrong_years=wrong_years,
+        wrong_dates=wrong_dates,
         interpretations=interpretations,
         checked_numbers=checked,
         suggestions=suggestions,
