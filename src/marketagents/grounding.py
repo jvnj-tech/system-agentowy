@@ -12,6 +12,10 @@ co da się uchwycić w samym tekście:
 2. Zdanie nie może zawierać prognozy ani wniosku o przyszłym zachowaniu kursu
    („dalszy wzrost”, „przestrzeń do spadków”, „ryzyko korekty”), chyba że jest to
    opinia przypisana autorowi cytowanej wiadomości („według [2] …”).
+3. Twierdzenie o rekordzie („rekordowe przychody”, „najwyższy w historii”) musi wskazywać
+   wiadomość, bo karta faktów obejmuje tylko 52 tygodnie notowań i dwa lata obrotowe.
+4. Liczba, krotność ani okres nie mogą być zapisane słowami („o cztery procent”,
+   „dwukrotnie”, „od pięciu sesji”), z wyjątkiem okresów z karty faktów.
 """
 
 from __future__ import annotations
@@ -123,16 +127,28 @@ FORECAST = re.compile(
 NUMBER_WORD = (
     r"(?:jed(?:en|na|no|nego)|dw(?:a|ie|óch|u)|trz(?:y|ech)|czter(?:y|ech)|pię(?:ć|ciu)|"
     r"sze(?:ść|ściu)|siedem|siedmiu|osiem|ośmiu|dziewię(?:ć|ciu)|dziesię(?:ć|ciu)|"
-    r"\w*naście|\w*naściu|\w*dzieści|\w*dziesiąt|\w*dziesięciu|sto|stu|dwieście|trzysta|czterysta|\w*set|półtora|"
+    r"\w*naście|\w*naściu|\w*dzieści|\w*dziesiąt|\w*dziesięciu|sto|stu|dwieście|trzysta|czterysta|\w*set|półtora|pół|"
     r"tysiąc\w*|tysięcy|milion\w*|miliard\w*|bilion\w*)"
 )
 SPELLED_NUMBER = re.compile(
     rf"\b{NUMBER_WORD}(?:\s+{NUMBER_WORD})*\s+(?:procent\w*|punkt\w*\s+procent\w*|"
-    r"dolar\w*|euro|akcji|miejsc\w*|tysięcy|tysiąc\w*|milion\w*|miliard\w*|bilion\w*)\b",
+    r"dolar\w*|euro|akcji|miejsc\w*|tysięcy|tysiąc\w*|milion\w*|miliard\w*|bilion\w*|razy)\b",
     re.IGNORECASE,
 )
 
 
+# Okres zapisany słowami („od pięciu sesji”) musi być okresem z karty faktów: 3 miesiące,
+# 12 miesięcy, 52 tygodnie albo dwa lata obrotowe (zmiana przychodów rok do roku i rok wcześniej).
+SPELLED_PERIOD = re.compile(
+    rf"\b{NUMBER_WORD}(?:\s+{NUMBER_WORD})*\s+(?:kolejn\w*\s+|ostatni\w*\s+)?"
+    r"(?:sesj\w*|dni|dzie\w*|tygod\w*|miesi\w*|lat\b|lata\b|latach|kwarta\w*)",
+    re.IGNORECASE,
+)
+CARD_PERIOD = re.compile(
+    r"^(?:trzy|trzech)\s+(?:\w+\s+)?miesi|^dwunast\w*\s+(?:\w+\s+)?miesi"
+    r"|^pięćdziesi\w*\s+dw\w*\s+(?:\w+\s+)?tygod|^dw\w*\s+(?:\w+\s+)?la",
+    re.IGNORECASE,
+)
 # Krotność i ułamek zapisane słowem („dwukrotnie”, „podwoił”, „o połowę”) też są liczbą.
 MULTIPLE = re.compile(
     r"\b(?:dwu|trzy|cztero|pięcio|sześcio|siedmio|ośmio|dziewięcio|dziesięcio|stu)krotn\w*"
@@ -303,11 +319,39 @@ def check_forecasts(text: str) -> list[ContentIssue]:
     return issues
 
 
+# Rekord albo poziom „w historii”: karta faktów obejmuje tylko 52 tygodnie notowań
+# i dwa lata obrotowe, więc takie twierdzenie może pochodzić wyłącznie z wiadomości.
+RECORD = re.compile(
+    r"\brekord\w*|\bhistoryczn\w*\s+(?:maksim|minim|szczyt|poziom)\w*|\bw\s+historii\b"
+    r"|\bnajwyższ\w*\s+od\s+lat\b|\bnajniższ\w*\s+od\s+lat\b",
+    re.IGNORECASE,
+)
+
+
+def check_records(text: str) -> list[ContentIssue]:
+    """Twierdzenia o rekordach bez numeru wiadomości, z której pochodzą."""
+    issues = []
+    for sentence in sentences(text):
+        match = RECORD.search(sentence)
+        if match and not CITATION.search(sentence):
+            issues.append(
+                ContentIssue(
+                    sentence,
+                    f"Zdanie „{_short(sentence)}” podaje rekord („{match.group(0)}”), którego "
+                    "nie da się sprawdzić w karcie faktów; usuń to twierdzenie albo wskaż "
+                    "wiadomość, która je podaje",
+                )
+            )
+    return issues
+
+
 def check_spelled_numbers(text: str) -> list[ContentIssue]:
     """Liczby zapisane słowami, którymi model omija zakaz wpisywania liczb."""
     issues = []
     for sentence in sentences(text):
+        periods = [m for m in SPELLED_PERIOD.finditer(sentence) if not CARD_PERIOD.match(m[0])]
         match = SPELLED_NUMBER.search(sentence) or MULTIPLE.search(sentence)
+        match = match or (periods[0] if periods else None)
         if match:
             issues.append(
                 ContentIssue(

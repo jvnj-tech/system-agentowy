@@ -102,3 +102,18 @@ def test_numbers_written_as_words():
     assert check_spelled_numbers("Spółka podwoiła sprzedaż chipów [1].")
     assert check_spelled_numbers("Popyt spadł o połowę [3].")
     assert not check_spelled_numbers("Spółka wielokrotnie podkreślała popyt [1].")
+    assert check_spelled_numbers("Popyt jest trzy razy większy [1].")
+    # okres słowami: tylko okresy z karty faktów
+    assert check_spelled_numbers("Kurs rośnie od pięciu sesji.")
+    assert check_spelled_numbers("Akcje tracą od trzech tygodni.")
+    assert not check_spelled_numbers("W ostatnich trzech miesiącach kurs wzrósł o {{change_3m}}.")
+    assert not check_spelled_numbers("Przychody rosną od dwóch lat obrotowych.")
+
+
+def test_records_need_a_news_source():
+    from marketagents.grounding import check_records
+
+    assert check_records("Kurs osiągnął rekordowy poziom.")
+    assert check_records("Przychody są najwyższe w historii spółki.")
+    assert not check_records("Spółka podała rekordowe przychody [2].")
+    assert not check_records("Kurs jest blisko maksimum z 52 tygodni.")

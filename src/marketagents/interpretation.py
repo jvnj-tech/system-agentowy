@@ -33,11 +33,12 @@ DISTANCE = re.compile(r"^dist_sma_\d+$")
 
 UP = re.compile(
     r"(?<!nie )\b(?:wzrost(?!ow)\w*|wzr[oó]s[łl]\w*|rośnie|rosną|zyskał\w*|zwyżkował\w*"
-    r"|podrożał\w*)",
+    r"|podrożał\w*|zwiększ\w*|umocni\w*|podwyższ\w*|podwyżk\w*|przyrost\w*)",
     re.IGNORECASE,
 )
 DOWN = re.compile(
-    r"(?<!nie )\b(?:spad(?!kow)\w*|stracił\w*|zniżkował\w*|potaniał\w*|zmalał\w*)",
+    r"(?<!nie )\b(?:spad(?!kow)\w*|stracił\w*|zniżkował\w*|potaniał\w*|zmalał\w*"
+    r"|zmniejsz\w*|obniż\w*|osłab\w*|skurcz\w*|przecen\w*)",
     re.IGNORECASE,
 )
 ABOVE = re.compile(r"\b(?:powyżej|ponad|nad)\b", re.IGNORECASE)

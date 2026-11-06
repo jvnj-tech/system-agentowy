@@ -71,6 +71,7 @@ from marketagents.verifier import (
     fact_years,
     indicator_periods,
     label_numbers,
+    label_periods,
     matches_fact,
     numbers_to_check,
     parse_number,
@@ -147,7 +148,7 @@ def unsupported_numbers(text: str, facts: FactSheet) -> list[str]:
     stripped = DMY_DATE.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
     stripped = LIST_MARKER.sub(" ", INDEX_NAME.sub(" ", stripped))
     out += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
-    for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed):
+    for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed, label_periods(facts)):
         if not any(matches_fact(parse_number(raw), fact) for fact in facts):
             out.append(raw)
     return out

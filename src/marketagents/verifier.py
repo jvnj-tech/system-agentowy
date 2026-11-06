@@ -3,15 +3,15 @@
 Działa bez modelu językowego, więc jej wynik jest powtarzalny. Sprawdza, czy:
 1. każde odwołanie {{identyfikator}} wskazuje istniejący fakt,
 2. w tekście nie ma liczb wpisanych poza odwołaniami, z wyjątkiem okresów stojących przy
-   nazwie wskaźnika (np. „RSI(14)”) albo przed jednostką czasu („z 52 tygodni”) i nazw
-   indeksów. Ta sama liczba w innym miejscu („wzrósł o 20%”) jest błędem, a liczba
-   w złożeniu słownym („5-procentowy”) tylko wtedy nie jest, gdy jest okresem albo
-   pochodzi z opisu faktu („10-letnich”). Liczba wpisana wprost jest
-   błędem nawet wtedy, gdy równa się wartości z karty, bo nie wiadomo, której wielkości
-   dotyczy: przy dopuszczeniu liczb zgodnych z faktem z tego samego zdania test
-   wstrzykniętych błędów pokazał, że podmiana na wartość sąsiedniego faktu (np. SMA(50)
-   zamiast SMA(20)) przechodzi niezauważona. Zgodność z kartą służy tylko do podpowiedzi,
-   którego odwołania użyć przy poprawce,
+   nazwie wskaźnika (np. „RSI(14)”), okresów z karty faktów i okien wskaźników przed
+   jednostką czasu („z 52 tygodni”, „średnia z 50 sesji”) oraz nazw indeksów. Ta sama liczba
+   w innym miejscu („wzrósł o 20%”) jest błędem, a liczba w złożeniu słownym
+   („5-procentowy”) tylko wtedy nie jest, gdy jest okresem albo pochodzi z opisu faktu
+   („10-letnich”). Liczba wpisana wprost jest błędem nawet wtedy, gdy równa się wartości z
+   karty, bo nie wiadomo, której wielkości dotyczy: przy dopuszczeniu liczb zgodnych z
+   faktem z tego samego zdania test wstrzykniętych błędów pokazał, że podmiana na wartość
+   sąsiedniego faktu (np. SMA(50) zamiast SMA(20)) przechodzi niezauważona. Zgodność z kartą
+   służy tylko do podpowiedzi, którego odwołania użyć przy poprawce,
 3. lata w tekście odpowiadają datom z karty faktów, a data w formacie ISO występuje w karcie
    (liczba z jednostką, np. „2025 USD”, jest sprawdzana jako liczba, a nie jako rok),
 4. słowny opis liczby i okres zmiany zgadzają się z kartą (moduł interpretation),
@@ -26,7 +26,12 @@ from dataclasses import dataclass, field
 from html import escape
 
 from marketagents.facts import Fact, FactSheet
-from marketagents.grounding import check_forecasts, check_news_content, check_spelled_numbers
+from marketagents.grounding import (
+    check_forecasts,
+    check_news_content,
+    check_records,
+    check_spelled_numbers,
+)
 from marketagents.interpretation import InterpretationIssue, check_interpretations
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
@@ -64,6 +69,8 @@ DEFAULT_ALLOWED = frozenset({2, 9, 12, 14, 20, 26, 50, 52, 200})
 # Okres jest dopuszczany tylko przy nazwie wskaźnika („RSI(14)”, „SMA 50 i 200”,
 # „Bollingera (20, 2)”) albo przed jednostką czasu („z 52 tygodni”, „3 miesiące”).
 # Bez tego warunku liczba równa okresowi przechodziłaby także jako wartość („wzrósł o 20%”).
+# Przed jednostką czasu liczba musi być okresem z karty faktów albo oknem wskaźnika
+# („średnia z 50 sesji”), inaczej przechodziłby zmyślony okres („rośnie od 9 sesji”).
 INDICATOR_NAME = r"(?:RSI|SMA|EMA|MACD|Bollinger\w*|sygnał\w*|średni\w*)"
 PERIOD_NUMBER = r"\d+(?![.,]\d|\s*%)"
 NAMED_PERIODS = re.compile(
@@ -72,8 +79,20 @@ NAMED_PERIODS = re.compile(
     re.IGNORECASE,
 )
 PERIOD_BEFORE_UNIT = re.compile(
-    r"(?<![\w.,])\d+(?=\s*(?:sesj|dni\b|dzie|tygod|miesi|mies\.|lat|rok|kwarta|odchyle))",
+    r"(?<![\w.,])(\d+)(\s*(?:sesj|dni\b|dzie|tygod|miesi|mies\.|lat|rok|kwarta|odchyle))",
     re.IGNORECASE,
+)
+WINDOW_BEFORE = re.compile(
+    rf"(?:{INDICATOR_NAME}|wstęg\w*)\S*(?:\s+\w+)?\s+z\s+(?:ostatnich\s+)?$", re.IGNORECASE
+)
+BANDS_BEFORE = re.compile(r"wstęg|Bollinger", re.IGNORECASE)
+# Okresy zmian w karcie faktów: liczba i początek jednostki („3 miesiącach” -> (3, „mie”)).
+# Zmiana z ostatniego roku bywa opisana jako zmiana z 12 miesięcy, a karta obejmuje dwa
+# lata obrotowe (zmiana przychodów rok do roku i rok wcześniej).
+STANDARD_PERIODS = frozenset({(3, "mie"), (12, "mie"), (52, "tyg"), (2, "lat")})
+# Liczba sklejona z jednostką („20mld”, „5x”) też jest liczbą wpisaną wprost.
+GLUED = re.compile(
+    r"(?<![\w.,−+-])\d+(?:[.,]\d+)?(?=(?:mld|mln|tys|usd|proc|pkt|pp|x)\b)", re.IGNORECASE
 )
 # Okna średnich ustawiane przez użytkownika są odczytywane z identyfikatorów faktów (sma_30).
 PERIOD_IN_ID = re.compile(r"^(?:sma|ema|dist_sma)_(\d+)$")
@@ -219,9 +238,26 @@ def matches_fact(value: float, fact: Fact) -> bool:
     return float(value).is_integer() and abs(abs(value) - abs(fact.value)) < 0.5
 
 
-def strip_periods(text: str, allowed: frozenset[int]) -> str:
-    """Usuwa okresy z dozwolonego zbioru, gdy stoją przy nazwie wskaźnika lub przed
-    jednostką czasu. Pozostałe liczby, także równe okresom, zostają do sprawdzenia."""
+def _unit_key(unit: str) -> str:
+    key = unit.strip().lower()[:3]
+    return "lat" if key == "let" else key
+
+
+def label_periods(facts: FactSheet) -> frozenset[tuple[int, str]]:
+    """Okresy z opisów faktów, np. (52, „tyg”) z „najwyższy kurs z 52 tygodni”."""
+    return STANDARD_PERIODS | frozenset(
+        (int(m.group(1)), _unit_key(m.group(2)))
+        for fact in facts
+        for m in re.finditer(r"(\d+)[\s-]*([^\W\d_]{3})", fact.label)
+    )
+
+
+def strip_periods(
+    text: str, allowed: frozenset[int], periods: frozenset[tuple[int, str]] = STANDARD_PERIODS
+) -> str:
+    """Usuwa okresy z dozwolonego zbioru, gdy stoją przy nazwie wskaźnika, oraz okresy przed
+    jednostką czasu, gdy są okresem z karty faktów albo oknem wskaźnika. Pozostałe liczby,
+    także równe okresom, zostają do sprawdzenia."""
 
     def drop(match: re.Match) -> str:
         return re.sub(
@@ -229,13 +265,26 @@ def strip_periods(text: str, allowed: frozenset[int]) -> str:
         )
 
     text = NAMED_PERIODS.sub(drop, text)
-    return PERIOD_BEFORE_UNIT.sub(drop, text)
+
+    def drop_period(match: re.Match) -> str:
+        number, key = int(match.group(1)), _unit_key(match.group(2))
+        before = text[max(0, match.start() - 60) : match.start()]
+        window = number in allowed and (
+            WINDOW_BEFORE.search(before) or (key == "odc" and BANDS_BEFORE.search(before))
+        )
+        return " " + match.group(2) if (number, key) in periods or window else match.group(0)
+
+    return PERIOD_BEFORE_UNIT.sub(drop_period, text)
 
 
-def numbers_to_check(text: str, allowed: frozenset[int]) -> list[str]:
+def numbers_to_check(
+    text: str, allowed: frozenset[int], periods: frozenset[tuple[int, str]] = STANDARD_PERIODS
+) -> list[str]:
     """Liczby wpisane wprost w kolejności występowania, po usunięciu okresów i dat."""
-    text = strip_periods(text, allowed)
-    found = [(m.start(), m.group(0)) for m in NUMBER.finditer(text)]
+    text = strip_periods(text, allowed, periods)
+    found = [(m.start(), m.group(0)) for m in GLUED.finditer(text)]
+    text = GLUED.sub(lambda m: " " * len(m.group(0)), text)
+    found += [(m.start(), m.group(0)) for m in NUMBER.finditer(text)]
     found += [
         (m.start(), m.group(0)) for m in COMPOUND.finditer(text) if int(m.group(0)) not in allowed
     ]
@@ -302,6 +351,7 @@ def verify(
     if news is not None and news_count is None:
         news_count = len(news)
     allowed = allowed | indicator_periods(facts) | label_numbers(facts)
+    periods = label_periods(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
     years = fact_years(facts)
     dates = fact_dates(facts)
@@ -320,7 +370,7 @@ def verify(
         stripped = INDEX_NAME.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", sentence)))
         stripped = CITATION.sub(" ", stripped)
         wrong_years += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
-        for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed):
+        for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed, periods):
             checked += 1
             unverified.append(raw)
             value = parse_number(raw)
@@ -333,7 +383,7 @@ def verify(
 
     uncited: list[str] = []
     bad: list[str] = []
-    content = check_forecasts(text) + check_spelled_numbers(text)
+    content = check_forecasts(text) + check_spelled_numbers(text) + check_records(text)
     if news_count is not None:
         # Przy pustej liście nie ma czego cytować, a każdy numer jest błędny.
         part = news_part(text)

@@ -186,3 +186,18 @@ def test_continuation_needs_previous_year():
         "Przychody wzrosły o {{fy_revenue_growth}} po {{fy_revenue_growth_prev}} rok wcześniej, "
         "co oznacza kontynuację wzrostu."
     )
+
+
+def test_direction_words_beyond_rise_and_fall():
+    from marketagents.facts import Fact, FactSheet
+    from marketagents.interpretation import check_interpretations
+
+    facts = FactSheet(
+        [
+            Fact("fy_revenue_growth", "zmiana przychodów r/r", -4.0, "%", 1),
+            Fact("macro_fed_rate_change_12m", "zmiana stopy w ciągu 12 miesięcy", 0.5, "p.p.", 2),
+        ]
+    )
+    assert check_interpretations("Przychody zwiększyły się o {{fy_revenue_growth}}.", facts)
+    assert check_interpretations("Fed obniżył stopy o {{macro_fed_rate_change_12m}}.", facts)
+    assert not check_interpretations("Przychody zmniejszyły się o {{fy_revenue_growth}}.", facts)

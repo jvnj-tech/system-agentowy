@@ -226,3 +226,24 @@ def test_number_with_unit_is_not_taken_for_a_year():
     result = verify("Kurs wynosi 2025 USD, a kapitalizacja 2026 mld USD.", facts)
     assert result.unverified_numbers == ["2025", "2026"] and result.wrong_years == []
     assert verify("W 2025 r. kurs wynosił {{close}}.", facts).ok
+
+
+def test_period_before_time_unit_must_come_from_fact_sheet_or_indicator_window():
+    facts = FactSheet(
+        [
+            Fact("close", "kurs", 100.0, "USD"),
+            Fact("high_52w", "najwyższy kurs zamknięcia z 52 tygodni", 120.0, "USD"),
+        ]
+    )
+    assert verify("Kurs jest niższy niż maksimum z 52 tygodni {{high_52w}}.", facts).ok
+    assert verify("Średnia z 50 sesji i RSI liczony z 14 sesji.", facts).ok
+    assert verify("Wstęgi Bollingera leżą o 2 odchylenia od średniej.", facts).ok
+    # zmyślony okres, choć liczby 9 i 14 są okresami wskaźników
+    assert verify("Kurs rośnie od 9 sesji.", facts).unverified_numbers == ["9"]
+    assert verify("Kurs spadał przez 14 dni z rzędu.", facts).unverified_numbers == ["14"]
+
+
+def test_number_glued_to_unit_is_reported():
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    assert verify("Przychody 20mld i wycena 5x wyższa.", facts).unverified_numbers == ["20", "5"]
+    assert verify("Zysk 1,5mld.", facts).unverified_numbers == ["1,5"]
