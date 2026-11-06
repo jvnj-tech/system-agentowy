@@ -188,14 +188,30 @@ def known(name: str, words: set[str]) -> bool:
     return len(parts) > 1 and all(any(same_word(p, w) for w in words) for p in parts)
 
 
-def proper_names(sentence: str) -> list[str]:
-    """Nazwy własne w zdaniu (bez pierwszego słowa, odwołań i numerów źródeł)."""
+def news_names(news: list[dict]) -> set[str]:
+    """Słowa pisane w wiadomościach zawsze wielką literą, czyli nazwy („Nvidia”, „Reuters”)."""
+    text = " ".join(
+        f"{item.get('headline', '')} {item.get('summary', '')} {item.get('source', '')}"
+        for item in news
+    )
+    words = re.findall(r"[\w&’'-]+", text)
+    lower = {w.lower() for w in words if w[0].islower()}
+    return {w.lower() for w in words if w[0].isupper() and len(w) > 2} - lower
+
+
+def proper_names(sentence: str, first_names: set[str] = frozenset()) -> list[str]:
+    """Nazwy własne w zdaniu (bez odwołań i numerów źródeł).
+
+    Pierwsze słowo zdania jest pisane wielką literą także wtedy, gdy nie jest nazwą
+    („Spółka”, „Według”), dlatego jest sprawdzane tylko wtedy, gdy jest skrótem
+    albo nazwą występującą w którejś wiadomości z listy (first_names).
+    """
     text = CITATION.sub(" ", PLACEHOLDER.sub(" ", sentence))
     names = []
     for i, match in enumerate(PROPER.finditer(text)):
         word = match.group(0)
         first = i == 0 and not text[: match.start()].strip()
-        if first and not word.isupper():
+        if first and not word.isupper() and not known(word, first_names):
             continue
         if word.lower() in COMMON or len(word) < 2:
             continue
@@ -207,6 +223,7 @@ def check_news_content(text: str, news: list[dict], allowed: list[str] = ()) -> 
     """Nazwy własne w zdaniach z numerem źródła, których nie ma w cytowanych wiadomościach."""
     issues = []
     allowed_words = source_words(" ".join(allowed))
+    first_names = news_names(news)
     for sentence in sentences(text):
         cited = [int(n) for n in CITATION.findall(sentence) if 1 <= int(n) <= len(news)]
         if not cited:
@@ -220,7 +237,7 @@ def check_news_content(text: str, news: list[dict], allowed: list[str] = ()) -> 
         )
         missing = [
             w
-            for w in proper_names(sentence)
+            for w in proper_names(sentence, first_names)
             if not known(w, allowed_words) and not known(w, source)
         ]
         if missing:

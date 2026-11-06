@@ -27,6 +27,14 @@ def test_names_must_appear_in_cited_news():
     assert not issues("Zarząd spółki Amazon nie skomentował sprawy.")
 
 
+def test_first_word_is_checked_when_it_is_a_name_from_the_news():
+    # „Microsoft” jest nazwą z wiadomości [1], więc na początku zdania z [2] jest błędem
+    assert issues("Microsoft przedstawił własny chip [2].")
+    assert not issues("Microsoft przedstawił własny chip [1].")
+    # zwykłe słowo na początku zdania nie jest nazwą
+    assert not issues("Prezes ocenił chińskie modele AI [2].")
+
+
 def test_proper_name_extraction():
     assert proper_names("Nvidia ogłosiła współpracę z Danaher i LSEG [1].") == ["Danaher", "LSEG"]
     assert same_word("Microsoftem", "microsoft") and same_word("Intela", "intel")
