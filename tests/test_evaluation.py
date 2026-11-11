@@ -279,3 +279,11 @@ def test_unsupported_numbers_skips_news_numbers_and_numbers_from_fact_labels():
     )
     text = "Położenie we wstęgach (0% = dolna, 100% = górna) wynosi 37% [7]. Spółka ma 12 sklepów."
     assert unsupported_numbers(text, sheet) == ["12"]
+
+
+def test_unsupported_numbers_keeps_dates_whole_when_year_is_in_news():
+    from marketagents.facts import Fact, FactSheet
+
+    sheet = FactSheet([Fact("as_of", "data ostatniej sesji", "2026-11-11")])
+    news = [{"headline": "Shares fell in 2026", "summary": ""}]
+    assert unsupported_numbers("Kurs na dzień 2026-11-11 [1].", sheet, news) == []

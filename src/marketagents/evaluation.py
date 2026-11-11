@@ -146,6 +146,10 @@ def unsupported_numbers(text: str, facts: FactSheet, news: list[dict] | None = N
     """
     allowed = DEFAULT_ALLOWED | indicator_periods(facts) | label_numbers(facts)
     years = fact_years(facts)
+    # Daty ISO są sprawdzane osobno; usuwanie lat z wiadomości nie może ich rozcinać.
+    dates = fact_dates(facts)
+    out = [d for d in ISO_DATE.findall(PLACEHOLDER.sub(" ", text)) if d not in dates]
+    text = ISO_DATE.sub(" ", text)
     if news:
         text = "\n".join(
             " ".join(strip_news_numbers(s, news) for s in sentences(line))
@@ -156,8 +160,6 @@ def unsupported_numbers(text: str, facts: FactSheet, news: list[dict] | None = N
     # Numery wiadomości [n] i liczby z opisów faktów („0% = dolna, 100% = górna”) nie są
     # wartościami wpisanymi przez model (tak samo traktuje je weryfikator).
     text = strip_described(CITATION.sub(" ", text), described_numbers(list(facts)))
-    dates = fact_dates(facts)
-    out = [d for d in ISO_DATE.findall(PLACEHOLDER.sub(" ", text)) if d not in dates]
     stripped = DMY_DATE.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
     stripped = LIST_MARKER.sub(" ", INDEX_NAME.sub(" ", stripped))
     out += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
