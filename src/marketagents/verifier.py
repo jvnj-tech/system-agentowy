@@ -31,6 +31,7 @@ from marketagents.grounding import (
     check_news_content,
     check_records,
     check_spelled_numbers,
+    strip_news_numbers,
 )
 from marketagents.interpretation import InterpretationIssue, check_interpretations
 
@@ -46,6 +47,8 @@ NUMBER = re.compile(
 # Liczba w złożeniu słownym („10-letnich”, „5-procentowy”); dopuszczalna tylko wtedy, gdy jest
 # okresem albo liczbą z opisu faktu. Pomijane są nazwy formularzy SEC („10-K”, „10-Q”).
 COMPOUND = re.compile(r"(?<![\w.,−+-])\d+(?=-[^\W\d])(?!-[KQ]\b)")
+# Łącznik zapisany innym znakiem („10‑letnich”, „10–letnich”) jest traktowany jak „-”.
+DASH_IN_WORD = re.compile(r"(?<=\d)[\u2010\u2011\u2012\u2013\u2014](?=[^\W\d_])")
 ISO_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 # Odwołanie do wiadomości z listy newsów, np. [3].
 CITATION = re.compile(r"\[(\d{1,2})\]")
@@ -60,7 +63,7 @@ INDEX_NAME = re.compile(
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 ABBREVIATION = re.compile(
     r"(?<![\w.])(?:ok|np|m\.in|tj|tzn|tzw|wg|ang|por|zob|ca|mln|mld|tys|pkt|proc|r|ds|itd|itp"
-    r"|nr|dot|godz|mies|prof|dr|mgr|inż|św|ul|wyd|red|zł)\.$",
+    r"|nr|dot|godz|mies|tyg|prof|dr|mgr|inż|św|ul|wyd|red|zł)\.$",
     re.IGNORECASE,
 )
 
@@ -79,7 +82,7 @@ NAMED_PERIODS = re.compile(
     re.IGNORECASE,
 )
 PERIOD_BEFORE_UNIT = re.compile(
-    r"(?<![\w.,])(\d+)(\s*(?:sesj|dni\b|dzie|tygod|miesi|mies\.|lat|rok|kwarta|odchyle))",
+    r"(?<![\w.,])(\d+)(\s*(?:sesj|dni\b|dzie|tyg|miesi|mies\.|lat|rok|kwarta|odchyle))",
     re.IGNORECASE,
 )
 WINDOW_BEFORE = re.compile(
@@ -87,9 +90,21 @@ WINDOW_BEFORE = re.compile(
 )
 BANDS_BEFORE = re.compile(r"wstęg|Bollinger", re.IGNORECASE)
 # Okresy zmian w karcie faktów: liczba i początek jednostki („3 miesiącach” -> (3, „mie”)).
-# Zmiana z ostatniego roku bywa opisana jako zmiana z 12 miesięcy, a karta obejmuje dwa
-# lata obrotowe (zmiana przychodów rok do roku i rok wcześniej).
-STANDARD_PERIODS = frozenset({(3, "mie"), (12, "mie"), (52, "tyg"), (2, "lat")})
+# Zmiana z ostatniego roku bywa opisana jako zmiana z 12 miesięcy, karta obejmuje dwa lata
+# obrotowe (zmiana przychodów rok do roku i rok wcześniej), a odległość od SMA(200) jest
+# oceniana na tle ostatnich 3 lat.
+STANDARD_PERIODS = frozenset({(3, "mie"), (12, "mie"), (52, "tyg"), (2, "lat"), (3, "lat")})
+# Liczba z opisu lub oceny faktu, do którego odwołuje się zdanie, zapisana z tą samą
+# jednostką („0% = minimum, 100% = maksimum”, „na tle ostatnich 3 lat”).
+DESCRIBED_NUMBER = re.compile(r"(?<![\w.,])(\d+)\s*(%|[^\W\d_]{3})")
+# Zero jako poziom odniesienia („histogram powyżej 0”), a nie wartość.
+ZERO_LEVEL = re.compile(
+    r"\b((?:powyżej|poniżej|ponad|nad|pod|wokół|blisko|linii|poziomu|okolicach)\s+)0"
+    r"(?![.,]?\d|\s*%)",
+    re.IGNORECASE,
+)
+# Numer w nazwie produktu z cytowanej wiadomości („iPhone 18”), a nie wartość.
+NAMED_NUMBER = re.compile(r"(?<![\w.,])([^\W\d_][\w-]*)\s+(\d+)(?![.,]?\d|\s*%)")
 # Liczba sklejona z jednostką („20mld”, „5x”) też jest liczbą wpisaną wprost.
 GLUED = re.compile(
     r"(?<![\w.,−+-])\d+(?:[.,]\d+)?(?=(?:mld|mln|tys|usd|proc|pkt|pp|x)\b)", re.IGNORECASE
@@ -116,6 +131,8 @@ class Verification:
     suggestions: dict[str, str] = field(default_factory=dict)
     # Liczby, które powtarzają wartość faktu, do którego odwołuje się to samo zdanie.
     repeated: list[str] = field(default_factory=list)
+    # Liczba wpisana wprost -> zdanie, w którym stoi (żeby autor wiedział, gdzie poprawić).
+    contexts: dict[str, str] = field(default_factory=dict)
     # Zdania o wiadomościach bez numeru źródła i numery spoza listy newsów.
     uncited: list[str] = field(default_factory=list)
     bad_citations: list[str] = field(default_factory=list)
@@ -145,22 +162,25 @@ class Verification:
 
     def issues(self) -> list[str]:
         out = [f"Nieznany identyfikator faktu: {{{{{i}}}}}" for i in self.unknown_ids]
-        for n in self.unverified_numbers:
+        # Ta sama liczba powtórzona w zdaniu daje jeden komunikat.
+        for n in dict.fromkeys(self.unverified_numbers):
             fact_id = self.suggestions.get(n)
+            where = f" w zdaniu „{_short(self.contexts[n])}”" if n in self.contexts else ""
             if n in self.repeated:
                 out.append(
-                    f"Liczba „{n}” powtarza bez odwołania wartość {{{{{fact_id}}}}}, "
+                    f"Liczba „{n}”{where} powtarza bez odwołania wartość {{{{{fact_id}}}}}, "
                     "która już stoi w zdaniu; usuń ją"
                 )
             elif fact_id:
                 out.append(
-                    f"Liczba „{n}” jest wpisana bez odwołania; jeśli to wartość "
+                    f"Liczba „{n}”{where} jest wpisana bez odwołania; jeśli to wartość "
                     f"{{{{{fact_id}}}}}, wstaw w jej miejsce odwołanie {{{{{fact_id}}}}}"
                 )
             else:
                 out.append(
-                    f"Liczba „{n}” nie pochodzi z karty faktów; "
-                    "zastąp ją odwołaniem {{identyfikator}}"
+                    f"Liczba „{n}”{where} nie pochodzi z karty faktów; "
+                    "wstaw odwołanie do faktu z karty, przytocz wartość tak jak w cytowanej "
+                    "wiadomości razem z jej numerem albo opisz zjawisko bez liczby"
                 )
         out += [
             f"Rok {y} nie odpowiada żadnej dacie w karcie faktów; "
@@ -174,7 +194,8 @@ class Verification:
         ]
         out += [i.message for i in self.interpretations]
         out += [
-            f"Zdanie „{_short(s)}” nie wskazuje źródła; dodaj numer wiadomości, np. [1]"
+            f"Zdanie „{_short(s)}” nie wskazuje źródła; dodaj numer wiadomości, "
+            "na której się opiera"
             for s in self.uncited
         ]
         out += [
@@ -212,7 +233,8 @@ def check_citations(text: str, count: int) -> tuple[list[str], list[str]]:
     """Zdania bez numeru źródła oraz numery spoza listy (1..count)."""
     uncited, bad = [], []
     for sentence in sentences(text):
-        if NOT_A_CLAIM.match(sentence):
+        # Zdanie z odwołaniem do karty (np. porównanie ze zmianą kursu) ma źródło w karcie.
+        if NOT_A_CLAIM.match(sentence) or PLACEHOLDER.search(sentence):
             continue
         numbers = CITATION.findall(sentence)
         if not numbers:
@@ -277,10 +299,41 @@ def strip_periods(
     return PERIOD_BEFORE_UNIT.sub(drop_period, text)
 
 
+def described_numbers(facts: list[Fact]) -> frozenset[tuple[int, str]]:
+    """Liczby z jednostką z opisów i ocen faktów, np. (100, „%”), (3, „lat”)."""
+    return frozenset(
+        (int(m.group(1)), _unit_key(m.group(2)) if m.group(2) != "%" else "%")
+        for fact in facts
+        for m in DESCRIBED_NUMBER.finditer(f"{fact.label} {fact.assessment or ''}")
+    )
+
+
+def strip_described(text: str, pairs: frozenset[tuple[int, str]]) -> str:
+    """Usuwa liczby, które powtarzają opis faktu z tą samą jednostką, i zero jako poziom."""
+
+    def drop(match: re.Match) -> str:
+        unit = match.group(2)
+        key = "%" if unit == "%" else _unit_key(unit)
+        return " " + unit if (int(match.group(1)), key) in pairs else match.group(0)
+
+    return ZERO_LEVEL.sub(r"\1 ", DESCRIBED_NUMBER.sub(drop, text))
+
+
+def strip_product_numbers(text: str, source: str) -> str:
+    """Usuwa numery z nazw występujących w cytowanych wiadomościach („iPhone 18”)."""
+
+    def drop(match: re.Match) -> str:
+        name = f"{match.group(1)} {match.group(2)}".lower()
+        return match.group(1) + " " if name in source else match.group(0)
+
+    return NAMED_NUMBER.sub(drop, text)
+
+
 def numbers_to_check(
     text: str, allowed: frozenset[int], periods: frozenset[tuple[int, str]] = STANDARD_PERIODS
 ) -> list[str]:
     """Liczby wpisane wprost w kolejności występowania, po usunięciu okresów i dat."""
+    text = DASH_IN_WORD.sub("-", text)
     text = strip_periods(text, allowed, periods)
     found = [(m.start(), m.group(0)) for m in GLUED.finditer(text)]
     text = GLUED.sub(lambda m: " " * len(m.group(0)), text)
@@ -361,21 +414,43 @@ def verify(
     unverified: list[str] = []
     suggestions: dict[str, str] = {}
     repeated: list[str] = []
+    contexts: dict[str, str] = {}
     checked = 0
+    previous: list[Fact] = []
     for sentence in sentences(LIST_MARKER.sub(" ", text)):
         referenced = [facts[i] for i in PLACEHOLDER.findall(sentence) if i in facts]
+        # Objaśnienie skali bywa osobnym zdaniem po zdaniu z odwołaniem.
+        described = described_numbers(referenced + previous)
+        previous = referenced
         wrong_dates += [
             d for d in ISO_DATE.findall(PLACEHOLDER.sub(" ", sentence)) if d not in dates
         ]
         stripped = INDEX_NAME.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", sentence)))
+        stripped = strip_described(stripped, described)
+        cited = [int(n) for n in CITATION.findall(sentence) if news and 1 <= int(n) <= len(news)]
+        news_years: set[int] = set()
+        if cited:
+            source = " ".join(
+                f"{news[n - 1].get('headline', '')} {news[n - 1].get('summary', '')}" for n in cited
+            ).lower()
+            stripped = strip_product_numbers(stripped, re.sub(r"\s+", " ", source))
+            stripped = strip_news_numbers(stripped, news)
+            # Rok podany w cytowanej wiadomości („2027 Growth Plans”) też ma źródło.
+            news_years = {int(y) for y in re.findall(r"\b(?:19|20)\d{2}\b", source)}
         stripped = CITATION.sub(" ", stripped)
-        wrong_years += [m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years]
+        wrong_years += [
+            m.group(0) for m in YEAR.finditer(stripped) if int(m.group(0)) not in years | news_years
+        ]
         for raw in numbers_to_check(YEAR.sub(" ", stripped), allowed, periods):
             checked += 1
             unverified.append(raw)
+            contexts.setdefault(raw, sentence.strip())
             value = parse_number(raw)
             same = next((f for f in referenced if matches_fact(value, f)), None)
-            other = same or next((f for f in facts if matches_fact(value, f)), None)
+            # W zdaniu z numerem wiadomości liczba pochodzi zwykle z wiadomości, a nie z karty.
+            other = same or (
+                None if cited else next((f for f in facts if matches_fact(value, f)), None)
+            )
             if other is not None:
                 suggestions[raw] = other.id
             if same is not None:
@@ -383,7 +458,7 @@ def verify(
 
     uncited: list[str] = []
     bad: list[str] = []
-    content = check_forecasts(text) + check_spelled_numbers(text) + check_records(text)
+    content = check_forecasts(text) + check_spelled_numbers(text, news) + check_records(text)
     if news_count is not None:
         # Przy pustej liście nie ma czego cytować, a każdy numer jest błędny.
         part = news_part(text)
@@ -409,6 +484,7 @@ def verify(
         checked_numbers=checked,
         suggestions=suggestions,
         repeated=repeated,
+        contexts=contexts,
         uncited=uncited,
         bad_citations=bad,
         news_count=news_count or 0,

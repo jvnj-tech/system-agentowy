@@ -217,7 +217,9 @@ def _check_persistence(
 
 # Części zdania: oceny położenia sprawdzane są w obrębie jednego członu, bo zdanie bywa
 # o kilku wskaźnikach naraz („…powyżej dolnej wstęgi, w górnej części zakresu z 52 tygodni”).
-CLAUSE = re.compile(r"[,;–—]|\s-\s|\boraz\b|\ba\b|\bnatomiast\b|\bjednak\w*\b")
+CLAUSE = re.compile(
+    r"[,;–—]|\s-\s|\boraz\b|\ba\b|\bnatomiast\b|\bjednak\w*\b|\bprzy\s+czym\b", re.IGNORECASE
+)
 PARENS = re.compile(r"\([^)]*\)")
 NEAR = re.compile(
     r"\b(?:blisk\w*|bliżej|pobliż\w*|przy|okolic\w*|częś\w*|połow\w*|granic\w*|sąsiedztw\w*)\b",
@@ -226,6 +228,14 @@ NEAR = re.compile(
 LOW_SIDE = re.compile(r"\b(?:doln\w*|minim\w*|dołk\w*|najniższ\w*|dna)\b", re.IGNORECASE)
 HIGH_SIDE = re.compile(r"\b(?:górn\w*|maksim\w*|szczyt\w*|najwyższ\w*)\b", re.IGNORECASE)
 MIDDLE = re.compile(r"\bśrod(?:ek|ka|ku|kow\w*)\b", re.IGNORECASE)
+# Słowo, które nazywa granicę stojącą przy jej odwołaniu („przy maksimum wynoszącym
+# {{high_52w}}”, „najwyższy kurs zamknięcia z 52 tygodni wynosi {{high_52w}}”), nie opisuje
+# położenia kursu.
+BOUNDARY_NAME = re.compile(
+    r"\b(?:doln\w*|minim\w*|najniższ\w*|górn\w*|maksim\w*|najwyższ\w*)\s+(?:[^\s{}]+\s+){0,6}"
+    r"\{\{\s*(?:high_52w|low_52w|bb_upper|bb_lower)\s*\}\}",
+    re.IGNORECASE,
+)
 BANDS = re.compile(r"wstęg|bollinger|\{\{\s*bb_", re.IGNORECASE)
 RANGE = re.compile(r"52|zakres\w*|roczn\w*|\{\{\s*(?:high|low)_52w|\{\{\s*range_52w", re.IGNORECASE)
 
@@ -238,6 +248,7 @@ def _zone_issue(clause: str, sentence: str, fact_id: str, facts: FactSheet):
     position = _numeric(facts, fact_id)
     if position is None or NEGATION.search(clause):
         return None
+    clause = BOUNDARY_NAME.sub(" ", clause)
     low, high = bool(LOW_SIDE.search(clause)), bool(HIGH_SIDE.search(clause))
     zone = facts[fact_id].assessment
     if MIDDLE.search(clause) and not (low or high):

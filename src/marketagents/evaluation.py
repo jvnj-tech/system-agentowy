@@ -48,6 +48,7 @@ from marketagents import prompts
 from marketagents.coverage import NOTE_PREFIX
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet, format_number
 from marketagents.graph import MarketData, _format_news
+from marketagents.grounding import sentences, strip_news_numbers
 from marketagents.interpretation import (
     AVERAGE,
     DIRECTIONAL,
@@ -133,14 +134,20 @@ class UsageCounter(BaseCallbackHandler):
 MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\([^)]*\)")
 
 
-def unsupported_numbers(text: str, facts: FactSheet) -> list[str]:
-    """Liczby w gotowym tekście, których nie ma w karcie faktów (porównanie z dowolnym faktem).
+def unsupported_numbers(text: str, facts: FactSheet, news: list[dict] | None = None) -> list[str]:
+    """Liczby w gotowym tekście, których nie ma w karcie faktów (porównanie z dowolnym faktem)
+    ani w cytowanych wiadomościach.
 
     Kryterium jest łagodniejsze niż w weryfikatorze, który nie przepuszcza żadnej liczby
     wpisanej poza odwołaniem, bo w wariancie bez karty zdania nie mają odwołań.
     """
     allowed = DEFAULT_ALLOWED | indicator_periods(facts) | label_numbers(facts)
     years = fact_years(facts)
+    if news:
+        text = "\n".join(
+            " ".join(strip_news_numbers(s, news) for s in sentences(line))
+            for line in text.split("\n")
+        )
     # Opis zakresu danych dopisuje kod, a odnośniki do wiadomości zawierają daty i adresy.
     text = MARKDOWN_LINK.sub(" ", text.split(NOTE_PREFIX)[0])
     dates = fact_dates(facts)
@@ -182,7 +189,9 @@ def report_record(
         "issue_counts": state.get("issue_counts", []),
         "unverified": len(state.get("unverified", [])),
         "flagged": len(state.get("flagged", [])),
-        "unsupported_numbers": unsupported_numbers(state.get("report", ""), facts),
+        "unsupported_numbers": unsupported_numbers(
+            state.get("report", ""), facts, state.get("news", [])
+        ),
         "draft": state.get("draft", ""),
         "report": state.get("report", ""),
         "facts": state["facts"],
@@ -503,8 +512,12 @@ def summarize_reports(records: list[dict]) -> list[dict]:
         }
         if variant == WITH_CARD:
             row |= {
-                "zweryfikowane za 1. razem [%]": round(
-                    100 * sum(r["verified"] and r["attempts"] == 1 for r in group) / len(group), 1
+                # Bez błędów już w pierwszej wersji redakcji (przed poprawkami i przeglądem).
+                "bez błędów w 1. wersji [%]": round(
+                    100
+                    * sum(bool(r.get("issue_counts")) and r["issue_counts"][0] == 0 for r in group)
+                    / len(group),
+                    1,
                 ),
                 "zweryfikowane ostatecznie [%]": round(
                     100 * sum(bool(r["verified"]) for r in group) / len(group), 1

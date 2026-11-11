@@ -6,6 +6,9 @@ Zasady dotyczące liczb:
   do karty faktów, dokładnie w postaci {{identyfikator}}, np. „RSI wynosi {{rsi_14}}”.
   Nie otaczaj odwołań żadnymi znakami formatowania (np. ` lub **).
 - Wolno pisać tylko nazwy wskaźników z ich okresami, np. „RSI(14)” albo „SMA(200)”.
+- Wyjątkiem jest liczba z artykułu: możesz ją przytoczyć w zdaniu z numerem wiadomości,
+  która ją podaje, w tej samej wartości co w źródle, np. „kapitalizacja zbliżyła się do
+  5 bln USD [2]”.
 - Nie wymyślaj identyfikatorów spoza karty faktów.
 - Nie licz niczego samodzielnie: jeśli potrzebnej wartości nie ma w karcie, opisz zjawisko słowami.
 - Kolumna „ocena” w karcie faktów podaje kierunek zmiany, strefę RSI albo położenie kursu
@@ -126,8 +129,9 @@ opisz po polsku najważniejsze wątki z ostatnich dni i ich możliwy wpływ na s
   zamiast powtarzać opinię.
 - Wiadomość o innej spółce, branży lub całym rynku opisuj tylko wtedy, gdy wprost dotyczy
   {ticker}, i zaznacz, że to informacja o branży lub rynku.
-- Nie przytaczaj liczb z artykułów, także zapisanych słowami („cztery procent”); opisz
-  zjawisko bez liczby (np. „wyraźny wzrost sprzedaży”), bo wartości nie da się zweryfikować.
+- Liczbę z artykułu przytaczaj tylko w zdaniu z numerem tej wiadomości i w tej samej
+  wartości co w źródle („sprzedaż spadła o 3% [4]”); nie przeliczaj jej ani nie zaokrąglaj
+  inaczej niż autor.
 
 {rules}
 Karta faktów:

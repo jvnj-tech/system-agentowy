@@ -231,3 +231,48 @@ def test_reference_must_match_the_indicator_named_before_it():
         "RSI i MACD wynoszą {{rsi_14}} i {{macd}}."
     )
     assert not check_interpretations(ok, facts)
+
+
+def test_boundary_named_next_to_its_value_is_not_a_position():
+    low = FactSheet(
+        [
+            Fact("high_52w", "maks.", 140.9, "USD"),
+            Fact("low_52w", "min.", 33.6, "USD"),
+            Fact("range_52w_position", "zakres", 2.0, "%", 0, assessment="przy minimum"),
+        ]
+    )
+    assert not check_interpretations(
+        "Położenie kursu w zakresie z 52 tygodni wynosi {{range_52w_position}}, co oznacza, "
+        "że kurs znajduje się przy minimum z 52 tygodni, które wynosi {{low_52w}}, przy "
+        "maksimum wynoszącym {{high_52w}}.",
+        low,
+    )
+    assert not check_interpretations(
+        "W zakresie z 52 tygodni, przy najwyższym kursie {{high_52w}} oraz najniższym "
+        "{{low_52w}}, obecny kurs znajduje się w dolnej części przedziału, co odpowiada "
+        "{{range_52w_position}}.",
+        low,
+    )
+    assert check_interpretations(
+        "Kurs jest blisko maksimum z 52 tygodni ({{range_52w_position}}).", low
+    )
+
+
+def test_boundary_after_przy_czym_is_not_a_position():
+    low = FactSheet(
+        [
+            Fact("high_52w", "maks.", 140.9, "USD"),
+            Fact("low_52w", "min.", 33.6, "USD"),
+            Fact("range_52w_position", "zakres", 25.0, "%", 0, assessment="w dolnej części"),
+        ]
+    )
+    assert not check_interpretations(
+        "Położenie kursu w zakresie z 52 tygodni wynosi {{range_52w_position}}, co oznacza, "
+        "że kurs znajduje się w dolnej części przedziału, przy czym najwyższy kurs zamknięcia "
+        "z 52 tygodni wynosi {{high_52w}}, a najniższy kurs zamknięcia z 52 tygodni wynosi "
+        "{{low_52w}}.",
+        low,
+    )
+    assert check_interpretations(
+        "Kurs jest w górnej części zakresu z 52 tygodni ({{range_52w_position}}).", low
+    )

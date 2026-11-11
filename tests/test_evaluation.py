@@ -196,7 +196,7 @@ def test_summary_and_cli(tmp_path, capsys):
 
     rows = summarize_reports(load_records(path))
     card, plain = rows
-    assert card["zweryfikowane za 1. razem [%]"] == 50.0
+    assert card["bez błędów w 1. wersji [%]"] == 50.0
     assert card["śr. problemy w 1. wersji"] == 2.0
     assert card["śr. tokeny wejściowe"] is None
     assert plain["raporty z liczbą spoza karty [%]"] == 100.0

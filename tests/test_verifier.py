@@ -101,6 +101,19 @@ def test_number_in_compound_word_is_allowed_only_for_periods_and_labels():
     assert not verify("Wzrost o 10-15%.", FACTS).ok
 
 
+def test_compound_with_other_dash_is_allowed():
+    facts = FactSheet([*FACTS, Fact("macro_10y", "rentowność 10-letnich obligacji USA", 4.1, "%")])
+    assert verify("Rentowność 10\u2011letnich obligacji wynosi {{macro_10y}}.", facts).ok
+    assert verify("Rentowność 10\u2013letnich obligacji wynosi {{macro_10y}}.", facts).ok
+    assert not verify("Wzrost o 10\u201315%.", FACTS).ok
+
+
+def test_repeated_number_gives_one_message():
+    result = verify("Kurs wzrósł o 7 USD, a potem o 7 USD.", FACTS)
+    assert result.unverified_numbers == ["7", "7"]
+    assert len([i for i in result.issues() if "„7”" in i]) == 1
+
+
 def test_mark_unverified_skips_dates():
     text = "Na dzień 2026-10-01 RSI wynosi 10."
     assert mark_unverified(text, ["10"]) == "Na dzień 2026-10-01 RSI wynosi 10 [niezweryfikowane]."
@@ -247,3 +260,53 @@ def test_number_glued_to_unit_is_reported():
     facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
     assert verify("Przychody 20mld i wycena 5x wyższa.", facts).unverified_numbers == ["20", "5"]
     assert verify("Zysk 1,5mld.", facts).unverified_numbers == ["1,5"]
+
+
+def test_numbers_repeating_the_description_of_a_referenced_fact_are_allowed():
+    facts = FactSheet(
+        [
+            Fact("close", "kurs", 100.0, "USD"),
+            Fact(
+                "range_52w_position",
+                "położenie kursu w zakresie z 52 tygodni (0% = minimum, 100% = maksimum)",
+                100.0,
+                "%",
+            ),
+            Fact(
+                "dist_sma_200",
+                "odległość od SMA(200)",
+                30.0,
+                "%",
+                1,
+                assessment=("odległość nietypowo duża na tle ostatnich 3 lat"),
+            ),
+            Fact("macd_hist", "histogram MACD", 0.4, "", 2),
+        ]
+    )
+    text = (
+        "Kurs leży na {{range_52w_position}} zakresu z 52 tyg. (0% to minimum, 100% maksimum). "
+        "Odległość {{dist_sma_200}} jest nietypowo duża na tle ostatnich 3 lat. "
+        "Histogram MACD {{macd_hist}} jest powyżej 0."
+    )
+    assert verify(text, facts).ok
+    # ta sama liczba bez odwołania do opisanego faktu albo z inną jednostką nadal jest błędem
+    assert verify("Kurs wzrósł o 100%.", facts).unverified_numbers == ["100"]
+    assert verify("Kurs {{range_52w_position}} wzrósł o 3%.", facts).unverified_numbers == ["3"]
+
+
+def test_product_number_from_cited_news_is_allowed():
+    facts = FactSheet([Fact("close", "kurs", 100.0, "USD")])
+    news = [{"source": "Yahoo", "headline": "Apple iPhone 18 Pro delivery times shrink"}]
+    assert verify("## Wiadomości\nKrótszy czas dostaw iPhone 18 Pro [1].", facts, news=news).ok
+    result = verify("## Wiadomości\nSprzedaż iPhone 17 spadła [1].", facts, news=news)
+    assert result.unverified_numbers == ["17"]
+    assert "w zdaniu „Sprzedaż iPhone 17 spadła [1].”" in result.issues()[0]
+
+
+def test_news_sentence_with_card_reference_needs_no_citation():
+    facts = FACTS
+    report = (
+        "## Wiadomości\nW ostatnim miesiącu kurs zmienił się o {{change_1m}}.\n"
+        "Rynek jest niespokojny."
+    )
+    assert verify(report, facts, news_count=1).uncited == ["Rynek jest niespokojny."]
