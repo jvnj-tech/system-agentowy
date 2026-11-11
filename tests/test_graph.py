@@ -77,6 +77,10 @@ def test_editor_fixes_invented_number():
     assert state["verified"]
     assert state["attempts"] == 2
     assert body(state["report"]) == "RSI wynosi 55,6." + END
+    # każda zweryfikowana wersja raportu jest zapisana razem z błędami weryfikatora
+    first, second = state["versions"]
+    assert "70,1" in first["draft"] and first["issues"]
+    assert "{{rsi_14}}" in second["draft"] and second["issues"] == []
 
 
 def test_unfixable_report_is_marked_after_max_attempts():
@@ -170,7 +174,9 @@ def test_run_report_sums_issue_counts_like_invoke():
     graph = build_graph(PromptLLM(), lambda ticker: data, review=False)
     state = run_report(graph, "TEST")
     assert state["issue_counts"] == [0]
-    assert state["issue_counts"] == graph.invoke({"ticker": "TEST"})["issue_counts"]
+    invoked = graph.invoke({"ticker": "TEST"})
+    assert state["issue_counts"] == invoked["issue_counts"]
+    assert state["versions"] == invoked["versions"]
 
 
 class ScriptedLLM(FakeListChatModel):

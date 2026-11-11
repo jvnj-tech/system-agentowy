@@ -62,12 +62,14 @@ from marketagents.interpretation import (
 )
 from marketagents.llm import message_text
 from marketagents.verifier import (
+    CITATION,
     DEFAULT_ALLOWED,
     INDEX_NAME,
     ISO_DATE,
     LIST_MARKER,
     PLACEHOLDER,
     YEAR,
+    described_numbers,
     fact_dates,
     fact_years,
     indicator_periods,
@@ -77,6 +79,7 @@ from marketagents.verifier import (
     numbers_to_check,
     parse_number,
     render,
+    strip_described,
     verify,
 )
 
@@ -150,6 +153,9 @@ def unsupported_numbers(text: str, facts: FactSheet, news: list[dict] | None = N
         )
     # Opis zakresu danych dopisuje kod, a odnośniki do wiadomości zawierają daty i adresy.
     text = MARKDOWN_LINK.sub(" ", text.split(NOTE_PREFIX)[0])
+    # Numery wiadomości [n] i liczby z opisów faktów („0% = dolna, 100% = górna”) nie są
+    # wartościami wpisanymi przez model (tak samo traktuje je weryfikator).
+    text = strip_described(CITATION.sub(" ", text), described_numbers(list(facts)))
     dates = fact_dates(facts)
     out = [d for d in ISO_DATE.findall(PLACEHOLDER.sub(" ", text)) if d not in dates]
     stripped = DMY_DATE.sub(" ", ISO_DATE.sub(" ", PLACEHOLDER.sub(" ", text)))
@@ -189,9 +195,12 @@ def report_record(
         "issue_counts": state.get("issue_counts", []),
         "unverified": len(state.get("unverified", [])),
         "flagged": len(state.get("flagged", [])),
+        # Liczone na tekście z wartościami, ale przed nową numeracją wiadomości, odnośnikami
+        # i opisem zakresu danych, żeby numer [n] wskazywał tę samą wiadomość co w szkicu.
         "unsupported_numbers": unsupported_numbers(
-            state.get("report", ""), facts, state.get("news", [])
+            render(state.get("draft", ""), facts), facts, state.get("news", [])
         ),
+        "versions": state.get("versions", []),
         "draft": state.get("draft", ""),
         "report": state.get("report", ""),
         "facts": state["facts"],

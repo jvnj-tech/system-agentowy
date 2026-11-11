@@ -261,3 +261,21 @@ def test_question_command_uses_latest_saved_report(tmp_path, monkeypatch):
     monkeypatch.setattr("marketagents.llm.get_chat_model", lambda settings: None)
     main(["--wyniki", str(results), "pytania", "--odpowiedzi", str(tmp_path / "p.jsonl")])
     assert seen == ["Raport."]
+
+
+def test_unsupported_numbers_skips_news_numbers_and_numbers_from_fact_labels():
+    from marketagents.facts import Fact, FactSheet
+
+    sheet = FactSheet(
+        [
+            Fact(
+                "bb_position",
+                "położenie kursu między wstęgami Bollingera (0% = dolna, 100% = górna)",
+                37.0,
+                "%",
+                0,
+            )
+        ]
+    )
+    text = "Położenie we wstęgach (0% = dolna, 100% = górna) wynosi 37% [7]. Spółka ma 12 sklepów."
+    assert unsupported_numbers(text, sheet) == ["12"]

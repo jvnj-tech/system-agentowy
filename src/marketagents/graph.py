@@ -90,6 +90,9 @@ class ReportState(TypedDict, total=False):
     issues: list[str]
     # Liczba problemów znalezionych przez weryfikator w kolejnych wersjach raportu.
     issue_counts: Annotated[list[int], operator.add]
+    # Każda zweryfikowana wersja raportu wraz z listą błędów zgłoszonych przez weryfikator
+    # (do oceny w rozdziale z wynikami: rodzaje błędów i przykład poprawki).
+    versions: Annotated[list[dict], operator.add]
     unverified: list[str]
     flagged: list[str]
     uncited: list[str]
@@ -231,6 +234,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
         return {
             "issues": issues,
             "issue_counts": [len(issues)],
+            "versions": [{"draft": state["draft"], "issues": issues}],
             "unverified": result.to_mark,
             "flagged": result.flagged_sentences,
             "uncited": result.uncited,
@@ -328,8 +332,8 @@ def run_report(
             for key, value in (values or {}).items():
                 if key == "analyses":
                     state.setdefault("analyses", {}).update(value)
-                elif key == "issue_counts":
-                    state.setdefault("issue_counts", []).extend(value)
+                elif key in ("issue_counts", "versions"):
+                    state.setdefault(key, []).extend(value)
                 else:
                     state[key] = value
             if on_step:
