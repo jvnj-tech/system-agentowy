@@ -1,18 +1,58 @@
 # System agentowy do analizy danych rynkowych
 
-System oparty na modelach językowych, który dla wybranej spółki z indeksu NASDAQ-100
-łączy dane cenowe, fundamentalne, newsy i wskaźniki makroekonomiczne, a następnie
-generuje raport analityczny z interaktywnymi wykresami i pozwala zadawać pytania o jego treść.
+System wieloagentowy oparty na modelach językowych, który dla wybranej spółki z indeksu
+NASDAQ-100 łączy notowania, sprawozdania finansowe, newsy i dane makroekonomiczne, generuje
+raport analityczny z interaktywnymi wykresami i pozwala zadawać pytania o jego treść.
+Projekt powstał w ramach pracy inżynierskiej na Politechnice Wrocławskiej.
 
-## Stan prac
+> **In English:** a multi-agent LLM system (LangGraph) that writes analytical reports on
+> NASDAQ-100 companies. All numbers are computed by deterministic Python code and stored in
+> a fact sheet; the agents only reference facts (`{{rsi_14}}`), and a rule-based verifier
+> checks every number, year, period and qualitative description before the report is shown.
+> Streamlit UI with Plotly charts and a Q&A assistant, 173 unit tests, CI on GitHub Actions.
 
-- [x] Szkielet projektu, testy i lint
-- [x] Warstwa danych z pamięcią podręczną (ceny, fundamenty, newsy, makro)
-- [x] Wskaźniki techniczne z testami
-- [x] Graf agentów (LangGraph): czterech analityków, redaktor i weryfikator liczb
-- [x] Interfejs (Streamlit + Plotly) z asystentem pytań o raport
-- [x] Ewaluacja jakości raportów (`marketagents-eval`)
-- [ ] Ewaluacja: backtesting wskaźników
+## Najważniejsze cechy
+
+- **Graf agentów w LangGraph:** czterech analityków (techniczny, fundamentalny, newsów,
+  makro) działa równolegle, redaktor składa raport, a asystent odpowiada na pytania o raport.
+- **Liczby liczy kod, model je opisuje:** agenci wstawiają odwołania do karty faktów zamiast
+  liczb, więc poprawność każdej liczby da się sprawdzić automatycznie.
+- **Weryfikator bez modelu językowego:** sprawdza liczby, lata, okresy, opisy słowne
+  (np. wzrost/spadek, strefa RSI) i źródła wiadomości; przy błędach raport wraca do poprawki.
+- **Pula modeli z obsługą limitów:** Groq i Google Gemini przez LangChain, przełączanie
+  modelu po wyczerpaniu darmowego limitu i test kwalifikacyjny modeli.
+- **Ewaluacja:** wariant porównawczy bez karty faktów, wstrzykiwanie błędów i porównanie
+  weryfikatora z modelem w roli sędziego.
+- **Jakość kodu:** 173 testy (pytest, działają bez klucza API), ruff, GitHub Actions.
+
+Technologie: Python 3.11, LangGraph, LangChain, pandas, Streamlit, Plotly, pytest, ruff, uv.
+
+## Szybki start
+
+Potrzebny jest [uv](https://docs.astral.sh/uv/getting-started/installation/) i jeden darmowy
+klucz do modelu językowego: [Groq](https://console.groq.com/keys) albo
+[Google AI Studio](https://aistudio.google.com/apikey). Pozostałe klucze są opcjonalne.
+
+```bash
+git clone https://github.com/jvnj-tech/system-agentowy.git
+cd system-agentowy
+uv sync                     # instaluje Pythona 3.11 i zależności
+cp .env.example .env        # wpisz GROQ_API_KEY (i LLM_PROVIDER=groq) albo GOOGLE_API_KEY
+uv run streamlit run src/marketagents/app.py
+```
+
+Aplikacja otworzy się w przeglądarce. Wybierz spółkę w panelu bocznym i kliknij generowanie
+raportu (trwa zwykle 1–3 minuty na darmowym planie). Wykresy działają bez klucza do modelu.
+
+Testy nie wymagają żadnych kluczy:
+
+```bash
+uv run pytest
+```
+
+Klucze opcjonalne w `.env` rozszerzają raport: `FINNHUB_API_KEY` (newsy), `FRED_API_KEY`
+(dane makro) i `SEC_USER_AGENT` (sprawozdania z SEC EDGAR, wystarczy imię, nazwisko i e-mail).
+Bez nich odpowiednia część raportu jest pomijana.
 
 ## Źródła danych
 
@@ -23,7 +63,7 @@ generuje raport analityczny z interaktywnymi wykresami i pozwala zadawać pytani
 | Newsy | Finnhub, `company-news` | tak, darmowy |
 | Makro (stopa Fed, CPI, rentowność 10Y, bezrobocie) | FRED | tak, darmowy |
 
-## Uruchomienie
+## Uruchomienie: szczegóły
 
 Wymagany jest [uv](https://docs.astral.sh/uv/).
 
@@ -40,7 +80,6 @@ Interfejs w przeglądarce:
 uv run streamlit run src/marketagents/app.py
 ```
 W panelu bocznym wybiera się spółkę z listy NASDAQ-100 (tylko z tej listy, także w `marketagents-report`). Lista to skład
-W panelu bocznym wybiera się spółkę z listy NASDAQ-100 lub wpisuje symbol. Lista to skład
 indeksu z danego dnia pobierany z serwisu Nasdaq (odświeżany co 12 godzin); bez dostępu
 do serwisu używana jest kopia z pliku `data/nasdaq100.csv` z datą stanu w nagłówku. Aplikacja ma trzy
 zakładki: raport (ze statusem weryfikacji liczb i kartą faktów), interaktywne wykresy

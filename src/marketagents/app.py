@@ -176,7 +176,11 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
 
 def current_model() -> str:
     """Model, który napisze następny raport (pierwszy dostępny z listy)."""
-    pool = chat_model()
+    try:
+        pool = chat_model()
+    except Exception:
+        # Bez klucza API wykresy nadal działają; raport wymaga uzupełnienia pliku .env.
+        return "brak klucza API (uzupełnij plik .env)"
     available = pool.available()
     if not available:
         return "brak dostępnego modelu (wyczerpane limity)"
