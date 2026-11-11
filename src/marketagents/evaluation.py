@@ -473,7 +473,15 @@ def injection_test(
             continue
         facts = FactSheet.from_records(record["facts"])
         draft = record["draft"]
-        if not verify(draft, facts).ok:
+        # Ta sama weryfikacja co w grafie: z wiadomościami i nazwą spółki, inaczej liczby
+        # z cytowanych wiadomości byłyby błędem, a raport zostałby pominięty.
+        news = record.get("news") or []
+        names = (record["ticker"], record.get("company", ""))
+
+        def check(text: str, facts=facts, news=news, names=names) -> bool:
+            return verify(text, facts, news=news, names=names).ok
+
+        if not check(draft):
             continue
         cases = [Mutation("bez błędu", "", "", draft), *inject_errors(draft, facts, rng)]
         for case in cases:
@@ -482,7 +490,7 @@ def injection_test(
                 "kind": case.kind,
                 "before": case.before,
                 "after": case.after,
-                "verifier": not verify(case.text, facts).ok,
+                "verifier": not check(case.text),
             }
             if llm is not None:
                 row["judge"] = judge_finds_error(
