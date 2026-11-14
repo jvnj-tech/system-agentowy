@@ -124,11 +124,26 @@ def _check_direction(
     sentence: str, refs: list[str], facts: FactSheet
 ) -> InterpretationIssue | None:
     directional = [r for r in refs if DIRECTIONAL.match(r) and _numeric(facts, r) is not None]
-    if len(directional) != 1:
+    if len(directional) == 1:
+        return _direction_issue(sentence, sentence, directional[0], facts)
+    if not directional:
         return None
-    fact_id = directional[0]
+    # Kilka zmian w jednym zdaniu („w roku wzrósł o …, a w miesiącu spadł o …”): kierunek
+    # sprawdzany jest w każdym członie zdania, który zawiera dokładnie jedną zmianę.
+    for clause in CLAUSE.split(sentence):
+        in_clause = [r for r in PLACEHOLDER.findall(clause) if r in directional]
+        if len(in_clause) == 1:
+            issue = _direction_issue(clause, sentence, in_clause[0], facts)
+            if issue:
+                return issue
+    return None
+
+
+def _direction_issue(
+    part: str, sentence: str, fact_id: str, facts: FactSheet
+) -> InterpretationIssue | None:
     value = _numeric(facts, fact_id)
-    up, down = bool(UP.search(sentence)), bool(DOWN.search(sentence))
+    up, down = bool(UP.search(part)), bool(DOWN.search(part))
     if up and not down and value < 0:
         return _issue(sentence, fact_id, facts, "zdanie opisuje wzrost, a wartość jest ujemna")
     if down and not up and value > 0:
@@ -428,6 +443,84 @@ def _check_indicator_ref(
     return None
 
 
+# Nazwy wielkości finansowych i makroekonomicznych oraz przedrostki identyfikatorów faktów,
+# które mogą im odpowiadać. Nazwy wieloznaczne („rentowność”, „zysk”) dopuszczają kilka
+# wielkości. Kolejność ma znaczenie: dłuższa nazwa stoi przed krótszą.
+QUANTITIES = [
+    (r"cen\w*\s*(?:do|/)\s*zysk\w*|\bC/Z\b|\bP/E\b", ("pe_ratio",)),
+    (r"(?:stop\w*\s+)?bezroboci\w*", ("macro_unemployment",)),
+    (
+        r"stop\w*\s+(?:procentow\w*|funduszy\s+federaln\w*|Fed\w*|referencyjn\w*)"
+        r"|\bRezerw\w*\s+Federaln\w*|\bFed\b",
+        ("macro_fed_rate",),
+    ),
+    (r"obligacj\w*", ("macro_10y",)),
+    (r"inflacj\w*|\bCPI\b|cen\w*\s+konsument\w*|cen\w*\s+konsumpcyjn\w*", ("macro_inflation",)),
+    (r"rentowno\w*\s+kapitał\w*|\bROE\b", ("fy_roe",)),
+    (r"marż\w*\s+(?:zysku\s+)?netto", ("fy_net_margin",)),
+    (r"marż\w*\s+(?:zysku\s+)?operacyjn\w*", ("fy_operating_margin",)),
+    (r"marż\w*\s+(?:zysku\s+)?brutto", ("fy_gross_margin",)),
+    (r"marż\w*", ("fy_net_margin", "fy_operating_margin", "fy_gross_margin")),
+    (
+        r"zysk\w*\s+na\s+(?:jedn\w*\s+)?akcj\w*|\bEPS\b",
+        ("fy_eps", "eps_diluted", "eps_filed"),
+    ),
+    (r"(?:zysk|wynik|doch[oó]d)\w*\s+netto", ("fy_net_income", "fy_net_margin")),
+    (r"zysk\w*\s+operacyjn\w*", ("fy_operating_margin",)),
+    (r"zysk\w*\s+brutto", ("fy_gross_margin",)),
+    (
+        r"zysk\w*",
+        ("fy_net_income", "fy_net_margin", "fy_operating_margin", "fy_gross_margin", "fy_eps"),
+    ),
+    (r"rentowno\w*", ("macro_10y", "fy_roe", "fy_net_margin", "fy_operating_margin")),
+    (r"przych[oó]d\w*|sprzedaż\w*", ("fy_revenue",)),
+    (r"przepływ\w*", ("fy_ocf",)),
+    (r"zadłużeni\w*|zobowiąza\w*", ("fy_liabilities_to_assets",)),
+]
+QUANTITY_MENTION = re.compile(
+    "|".join(f"(?P<q{i}>(?<![\\w/])(?:{pattern}))" for i, (pattern, _) in enumerate(QUANTITIES)),
+    re.IGNORECASE,
+)
+QUANTITY_PREFIXES = tuple(p for _, prefixes in QUANTITIES for p in prefixes)
+QUANTITY_GAP = 40
+
+
+def _quantity_prefixes(match: re.Match) -> tuple[str, ...]:
+    return next(QUANTITIES[int(k[1:])][1] for k, v in match.groupdict().items() if v)
+
+
+def _check_quantity_ref(
+    sentence: str, refs: list[str], facts: FactSheet
+) -> InterpretationIssue | None:
+    """Odwołanie stojące zaraz po nazwie wielkości („stopa bezrobocia wynosi …”) musi
+    dotyczyć tej wielkości. Zdanie, które wcześniej nazywa wielkość z odwołania, nie jest
+    oceniane, bo odwołanie może stać dalej od swojej nazwy („zysk netto wzrósł szybciej niż
+    przychody ({{fy_net_income_growth}} wobec {{fy_revenue_growth}})”)."""
+    start = 0
+    for ref in PLACEHOLDER.finditer(sentence):
+        before, start = sentence[start : ref.start()], ref.end()
+        fact_id = ref.group(1)
+        if fact_id not in facts or not fact_id.startswith(QUANTITY_PREFIXES):
+            continue
+        mentions = list(QUANTITY_MENTION.finditer(before))
+        if not mentions or len(before) - mentions[-1].end() > QUANTITY_GAP:
+            continue
+        # Kilka nazw wymienionych razem („stopa bezrobocia i inflacja wynoszą … i …”).
+        named = [mentions.pop()]
+        while mentions and NAME_JOIN.fullmatch(before[mentions[-1].end() : named[-1].start()]):
+            named.append(mentions.pop())
+        expected = {p for m in named for p in _quantity_prefixes(m)}
+        if fact_id.startswith(tuple(expected)):
+            continue
+        earlier = QUANTITY_MENTION.finditer(sentence[: ref.start()])
+        if any(fact_id.startswith(_quantity_prefixes(m)) for m in earlier):
+            continue
+        name = " i ".join(m.group(0) for m in reversed(named))
+        why = f"odwołanie stoi przy nazwie „{name}”, a dotyczy innej wielkości"
+        return _issue(sentence, fact_id, facts, why)
+    return None
+
+
 def periods_in(words: str) -> list[str]:
     """Okresy wymienione w tekście, np. [„rok”] dla „w ostatnim roku”."""
     found = []
@@ -500,6 +593,7 @@ def prompt_table(facts: FactSheet) -> str:
 # (np. „kurs jest blisko dolnej wstęgi” bez podania wartości).
 CHECKS_WITH_REFS = (
     _check_indicator_ref,
+    _check_quantity_ref,
     _check_direction,
     _check_rsi,
     _check_position,

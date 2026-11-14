@@ -27,6 +27,8 @@ def test_decrease_with_negative_value():
     assert not messages("Stopa zmieniła się o {{macro_fed_rate_change_12m}}.")
     # Wartość dodatnia po „wzrost o” nie jest błędem formy.
     assert not messages("Kurs wzrósł o {{change_1y}}.")
+    # „Spadek” z innego członu zdania nie dotyczy tej wartości.
+    assert not messages("Kurs spadł, a stopa zmieniła się o {{macro_fed_rate_change_12m}}.")
 
 
 def test_card_value_with_news_number():

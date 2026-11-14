@@ -28,7 +28,7 @@ PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 
 DECREASE = re.compile(
     r"\b(?:spad\w*|spadł\w*|zmniejsz\w*|obniż\w*|zniżk\w*|stracił\w*|zmalał\w*)\b"
-    r"[^.{}\[\]]{0,40}?\bo\s+\{\{\s*([A-Za-z0-9_]+)\s*\}\}",
+    r"[^.,;{}\[\]]{0,40}?\bo\s+\{\{\s*([A-Za-z0-9_]+)\s*\}\}",
     re.IGNORECASE,
 )
 # Wartość z karty, po której (ewentualnie po nawiasie „(wzrost)” lub dopowiedzeniu

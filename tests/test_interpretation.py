@@ -276,3 +276,70 @@ def test_boundary_after_przy_czym_is_not_a_position():
     assert check_interpretations(
         "Kurs jest w górnej części zakresu z 52 tygodni ({{range_52w_position}}).", low
     )
+
+
+QUANTITY_FACTS = FactSheet(
+    [
+        Fact("macro_fed_rate", "stopa funduszy federalnych", 3.88, "%", 2),
+        Fact("macro_10y", "rentowność 10-letnich obligacji USA", 4.1, "%", 2),
+        Fact("macro_unemployment", "stopa bezrobocia w USA", 4.3, "%", 1),
+        Fact("macro_inflation", "inflacja CPI r/r", 3.0, "%", 1),
+        Fact("fy_revenue", "przychody", 50.2, "mld USD", 1),
+        Fact("fy_revenue_growth", "zmiana przychodów r/r", 15.1, "%", 1),
+        Fact("fy_net_income", "zysk netto", 8.1, "mld USD", 1),
+        Fact("fy_net_income_growth", "zmiana zysku netto r/r", -4.0, "%", 1),
+        Fact("fy_net_margin", "marża netto", 16.1, "%", 1),
+        Fact("fy_operating_margin", "marża operacyjna", 21.0, "%", 1),
+        Fact("fy_eps", "zysk na akcję", 3.2, "USD", 2),
+        Fact("fy_roe", "ROE", 25.0, "%", 1),
+        Fact("pe_ratio", "C/Z", 24.1, "", 1),
+    ]
+)
+
+
+def test_reference_must_match_the_quantity_named_before_it():
+    wrong = [
+        "Stopa bezrobocia w USA wynosi {{macro_10y}}.",
+        "Stopa bezrobocia wynosi obecnie {{macro_fed_rate}}.",
+        "Zysk netto wzrósł rok do roku o {{fy_revenue_growth}}.",
+        "Inflacja CPI wynosi {{macro_unemployment}}.",
+        "Wskaźnik C/Z wynosi {{fy_eps}}.",
+        "Przychody wyniosły {{fy_net_income}}.",
+    ]
+    for text in wrong:
+        issues = check_interpretations(text, QUANTITY_FACTS)
+        assert issues and "innej wielkości" in issues[0].message, text
+
+
+def test_quantity_names_matching_their_references_pass():
+    correct = [
+        "Stopa bezrobocia w USA wynosi {{macro_unemployment}}.",
+        "Stopa funduszy federalnych wynosi {{macro_fed_rate}}, a rentowność 10-letnich "
+        "obligacji USA {{macro_10y}}.",
+        # Kilka nazw wymienionych razem.
+        "Stopa bezrobocia i inflacja CPI wynoszą odpowiednio {{macro_unemployment}} i "
+        "{{macro_inflation}}.",
+        # Wielkość z odwołania nazwana wcześniej w zdaniu.
+        "Zysk netto zmienił się inaczej niż przychody ({{fy_net_income_growth}} wobec "
+        "{{fy_revenue_growth}}).",
+        "Marża zysku netto wyniosła {{fy_net_margin}}, a marża operacyjna {{fy_operating_margin}}.",
+        "Rentowność kapitału własnego (ROE) wyniosła {{fy_roe}}.",
+        "Wskaźnik cena do zysku wynosi {{pe_ratio}}, przy zysku na akcję {{fy_eps}}.",
+        "Spółka wypracowała zysk netto w wysokości {{fy_net_income}} przy marży netto "
+        "{{fy_net_margin}}.",
+    ]
+    for text in correct:
+        assert not check_interpretations(text, QUANTITY_FACTS), text
+
+
+def test_direction_is_checked_in_each_clause_with_several_changes():
+    issues = messages(
+        "Kurs w ostatnim roku spadł o {{change_1y}}, a w ostatnim miesiącu wzrósł o {{change_1m}}."
+    )
+    assert len(issues) == 1 and "{{change_1y}}" in issues[0] and "spadek" in issues[0]
+    issues = messages("W miesiącu kurs wzrósł o {{change_1m}}, natomiast w roku o {{change_1y}}.")
+    assert len(issues) == 1 and "{{change_1m}}" in issues[0]
+    assert not messages(
+        "Kurs w ostatnim roku wzrósł o {{change_1y}}, a w ostatnim miesiącu zmienił się o "
+        "{{change_1m}}."
+    )
