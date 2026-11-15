@@ -220,13 +220,19 @@ def sidebar() -> tuple[str | None, bool, MovingAverages | None]:
     return ticker, clicked, ma
 
 
+def escape_dollars(text: str) -> str:
+    """Streamlit traktuje tekst między dwoma znakami $ jako wzór; kwoty w nagłówkach
+    wiadomości („$347 Billion to $4.6 Trillion”) mają się wyświetlać jak zwykły tekst."""
+    return text.replace("$", "\\$")
+
+
 def show_report(ticker: str, result: dict) -> None:
     if result["verified"]:
         st.success(
-            "Raport zweryfikowany: wszystkie liczby pochodzą z karty faktów, ich opis zgadza się "
-            "z ocenami wyznaczonymi przez kod, a zdania o wiadomościach wskazują źródła "
+            "Raport zweryfikowany: każda liczba ma wskazane źródło, jej opis jest zgodny "
+            "z danymi, a zdania o wiadomościach mają odnośniki do artykułów "
             f"(wersje redakcji: {result['attempts']}, czas: {result['elapsed']:.0f} s). "
-            "Twierdzeń bez liczb weryfikator nie sprawdza."
+            "Stwierdzenia bez liczb nie są sprawdzane automatycznie."
         )
     else:
         st.warning(
@@ -245,7 +251,10 @@ def show_report(ticker: str, result: dict) -> None:
                 else ""
             )
         )
-    st.markdown(FACT_STYLE + result.get("report_html", result["report"]), unsafe_allow_html=True)
+    st.markdown(
+        FACT_STYLE + escape_dollars(result.get("report_html", result["report"])),
+        unsafe_allow_html=True,
+    )
     st.caption("Kliknij liczbę lub najedź na nią kursorem, aby zobaczyć jej źródło.")
     st.download_button(
         "Pobierz raport (.md)",
@@ -253,13 +262,12 @@ def show_report(ticker: str, result: dict) -> None:
         file_name=f"raport_{ticker}.md",
         mime="text/markdown",
     )
-    with st.expander("Karta faktów"):
+    with st.expander("Dane źródłowe raportu"):
         facts = FactSheet.from_records(result["facts"])
         st.dataframe(
             pd.DataFrame(
                 [
                     {
-                        "identyfikator": f.id,
                         "opis": f.label,
                         "wartość": f.formatted(),
                         "źródło": f.source,
@@ -339,7 +347,7 @@ def show_chat(ticker: str, result: dict | None) -> None:
     chat = st.session_state.chats.setdefault(ticker, [])
     for message in chat:
         with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            st.markdown(escape_dollars(message["content"]))
             if message.get("verified") is False:
                 st.caption(
                     "Części odpowiedzi nie udało się zweryfikować; jest oznaczona w tekście."
