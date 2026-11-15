@@ -14,7 +14,7 @@ from marketagents.data.cache import DiskCache
 from marketagents.data.fundamentals import get_fundamentals
 from marketagents.data.macro import get_macro
 from marketagents.data.news import get_news, relevant_news, select_news
-from marketagents.data.prices import get_prices
+from marketagents.data.prices import get_prices, splits_after
 from marketagents.data.universe import company_name
 from marketagents.facts import fundamental_facts, macro_facts, technical_facts
 from marketagents.indicators import compute_all
@@ -72,7 +72,9 @@ def load_market_data(settings, cache: DiskCache, ticker: str, ma=None):
 
     sources = {
         "fundamenty": lambda: fundamental_facts(
-            get_fundamentals(cache, ticker, settings.sec_user_agent), close
+            get_fundamentals(cache, ticker, settings.sec_user_agent),
+            close,
+            lambda date: splits_after(prices, date),
         ),
         "makro": lambda: macro_facts(get_macro(cache, settings.fred_api_key)),
     }

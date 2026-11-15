@@ -94,6 +94,11 @@ def annual_facts(companyfacts: dict) -> pd.DataFrame:
             df = df.sort_values("filed").drop_duplicates("end", keep="last")
             series = df.set_index("end")["val"].astype(float)
             columns[name] = columns[name].combine_first(series) if name in columns else series
+            if name == "eps_diluted":
+                # Data złożenia sprawozdania: EPS nie uwzględnia splitów, które nastąpiły później.
+                filed = pd.to_datetime(df.set_index("end")["filed"])
+                prior = columns.get("eps_filed")
+                columns["eps_filed"] = prior.combine_first(filed) if prior is not None else filed
     if not columns:
         return pd.DataFrame()
     out = pd.DataFrame(columns).sort_index()

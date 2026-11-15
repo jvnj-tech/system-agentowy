@@ -48,7 +48,7 @@ HEADS = (
 END = HEADS + f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
 DRAFT = (
     "## Podsumowanie\nStan na {{as_of}}: kurs {{close}} USD jest powyżej SMA(200) {{sma_200}}. "
-    "W ostatnim miesiącu kurs spadł o {{change_1m}}. W ciągu roku wzrósł o {{change_1y}}. "
+    "W ostatnim miesiącu kurs zmienił się o {{change_1m}}. W ciągu roku wzrósł o {{change_1y}}. "
     "RSI(14) wynosi {{rsi_14}}, co oznacza strefę neutralną. "
     "Marża netto to {{fy_net_margin}}." + END
 )
@@ -210,7 +210,7 @@ def test_words_are_flipped_only_where_they_agree_with_the_data():
     text = (
         "Kurs nie wzrósł o {{change_1y}}. "
         "RSI {{rsi_14}} jest daleko od strefy wykupienia. "
-        "Kurs wzrósł w roku o {{change_1y}}, a w miesiącu spadł o {{change_1m}}." + END
+        "Kurs wzrósł w roku o {{change_1y}}, a w miesiącu zmienił się o {{change_1m}}." + END
     )
     kinds = {m.kind for m in inject_errors(text, SHEET, random.Random(0))}
     assert "kierunek" not in kinds and "okres" not in kinds

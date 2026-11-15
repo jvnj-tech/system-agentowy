@@ -51,6 +51,23 @@ def expected_sections(analyses: dict[str, str]) -> list[tuple[str, str | None]]:
     return [(title, name) for title, name in SECTIONS if name is None or analyses.get(name)]
 
 
+def missing_note(analyses: dict[str, str]) -> str:
+    """Informacja dla redaktora o sekcjach bez danych (np. spółka bez sprawozdania 10-K).
+
+    Bez niej model wymyślał w ograniczeniach pominięte sekcje, których nigdy nie było
+    („pominięto sekcję analizy portfelowej”).
+    """
+    missing = [
+        title.removeprefix("## ") for title, name in SECTIONS if name and not analyses.get(name)
+    ]
+    if not missing:
+        return "Wszystkie sekcje mają dane; w ograniczeniach nie pisz o pominiętych sekcjach."
+    return (
+        "Brak danych do sekcji: " + ", ".join(f"„{m}”" for m in missing) + ". Pomiń je, a w "
+        "ograniczeniach napisz jednym zdaniem, jakich danych brakuje."
+    )
+
+
 def section_issues(draft: str, analyses: dict[str, str]) -> list[str]:
     """Brakujące sekcje i sekcje w złej kolejności (model potrafi zgubić sekcję przy poprawce)."""
     expected = expected_sections(analyses)
@@ -69,7 +86,10 @@ def section_issues(draft: str, analyses: dict[str, str]) -> list[str]:
 
 
 # Fakty, które dostaje analityk wiadomości, by porównać opinie z artykułów z danymi.
-NEWS_CONTEXT = ("change_1m", "change_3m", "change_1y")
+# Analityk wiadomości nie dostaje wartości z karty: gdy dostawał zmiany kursu, przepisywał je
+# do sekcji wiadomości z numerami artykułów i zestawiał z artykułami jako „rozbieżności”,
+# choć artykuły dotyczyły innych dni (przegląd raportów z 14.11.2026).
+NEWS_CONTEXT = ("ticker",)
 
 
 @dataclass
@@ -172,7 +192,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
             facts = sheet.group(group)
             has_data = any(f.group == group for f in facts)
             if needs_news:
-                facts = FactSheet([*facts, *(sheet[i] for i in NEWS_CONTEXT if i in sheet)])
+                facts = FactSheet([sheet[i] for i in NEWS_CONTEXT if i in sheet])
             if needs_news and not state.get("news"):
                 return {}
             if not needs_news and not has_data:
@@ -215,6 +235,7 @@ def build_graph(llm: BaseChatModel, load_data: Callable[[str], MarketData], revi
             return {"draft": ask(prompt) or state["draft"]}
         prompt = prompts.EDITOR.format(
             ticker=state["ticker"],
+            missing=missing_note(analyses),
             rules=prompts.PLACEHOLDER_RULES,
             facts=prompt_table(facts),
             analyses="\n\n".join(f"### Analiza: {k}\n{v}" for k, v in analyses.items()),

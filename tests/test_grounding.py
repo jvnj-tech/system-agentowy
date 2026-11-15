@@ -223,3 +223,16 @@ def test_year_from_cited_news_is_allowed():
         "Spółka przedstawiła plany na 2028 rok [1].", FactSheet([]), news=news
     ).wrong_years
     assert verify("Spółka przedstawiła plany na 2027 rok.", FactSheet([]), news=news).wrong_years
+
+
+def test_number_from_other_article_gets_its_number():
+    from marketagents.facts import FactSheet
+    from marketagents.verifier import verify
+
+    news = [
+        {"headline": "Booking shares little changed", "summary": "Revenue miss."},
+        {"headline": "Booking sales", "summary": "revenue falling 1.3% to $8.89 billion"},
+    ]
+    v = verify("Przychody wyniosły 8,89 mld USD [1].", FactSheet([]), news=news)
+    assert v.news_hints == {"8,89": 2}
+    assert "[2]" in v.issues()[0]

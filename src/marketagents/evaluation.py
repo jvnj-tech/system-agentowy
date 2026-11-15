@@ -47,7 +47,7 @@ from langchain_core.outputs import LLMResult
 from marketagents import prompts
 from marketagents.coverage import NOTE_PREFIX
 from marketagents.facts import FUNDAMENTAL, MACRO, TECHNICAL, Fact, FactSheet, format_number
-from marketagents.graph import MarketData, _format_news
+from marketagents.graph import NEWS_CONTEXT, MarketData, _format_news, missing_note
 from marketagents.grounding import sentences, strip_news_numbers
 from marketagents.interpretation import (
     AVERAGE,
@@ -240,6 +240,8 @@ def report_without_fact_card(
     analyses = {}
     for name, template, group, needs_news in ANALYSTS:
         subset = facts.group(group)
+        if needs_news:
+            subset = FactSheet([facts[i] for i in NEWS_CONTEXT if i in facts])
         if needs_news and not data.news:
             continue
         if not needs_news and not any(f.group == group for f in subset):
@@ -253,6 +255,7 @@ def report_without_fact_card(
         analyses[name] = message_text(llm.invoke(prompt, config=config))
     prompt = prompts.EDITOR.format(
         ticker=ticker,
+        missing=missing_note(analyses),
         rules=prompts.PLAIN_NUMBER_RULES,
         facts=plain_table(facts),
         analyses="\n\n".join(f"### Analiza: {k}\n{v}" for k, v in analyses.items()),

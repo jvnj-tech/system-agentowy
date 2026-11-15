@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass
 
 from marketagents.facts import FactSheet
+from marketagents.sentences import split as split_sentences
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -95,7 +96,7 @@ class InterpretationIssue:
 
 
 def sentences(text: str) -> list[str]:
-    return [s.strip() for s in SENTENCE.split(text) if s.strip()]
+    return [s.strip() for s in split_sentences(text)]
 
 
 def _short(sentence: str) -> str:

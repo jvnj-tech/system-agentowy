@@ -205,12 +205,18 @@ def distance_assessment(distance: float, percentile: float | None) -> str:
     return f"{side}, {size}"
 
 
-def zone(position: float, low: str, high: str) -> str:
-    """Położenie w przedziale (0 = dół, 100 = góra) opisane słowami."""
+def zone(
+    position: float, low: str, high: str, low_at: str | None = None, high_at: str | None = None
+) -> str:
+    """Położenie w przedziale (0 = dół, 100 = góra) opisane słowami.
+
+    low, high: nazwy krańców w dopełniaczu („poniżej dolnej wstęgi”); low_at, high_at:
+    w miejscowniku („przy dolnej wstędze”), jeśli forma się różni.
+    """
     if position < 0:
         return f"poniżej {low}"
     if position <= 20:
-        return f"przy {low}"
+        return f"przy {low_at or low}"
     if position < 40:
         return "w dolnej części przedziału"
     if position <= 60:
@@ -218,7 +224,7 @@ def zone(position: float, low: str, high: str) -> str:
     if position < 80:
         return "w górnej części przedziału"
     if position <= 100:
-        return f"przy {high}"
+        return f"przy {high_at or high}"
     return f"powyżej {high}"
 
 
@@ -256,7 +262,9 @@ def _position_facts(
                 0,
                 TECHNICAL,
                 f"{prices_src}; (kurs - dolna wstęga) / (górna - dolna)",
-                zone(position, "dolnej wstęgi", "górnej wstęgi"),
+                zone(
+                    position, "dolnej wstęgi", "górnej wstęgi", "dolnej wstędze", "górnej wstędze"
+                ),
             )
         )
         widths = ((indicators["bb_upper"] - indicators["bb_lower"]) / indicators["bb_mid"]).dropna()
@@ -344,8 +352,15 @@ def _growth(last: float | None, prev: float | None) -> float | None:
     return (last / prev - 1) * 100
 
 
-def fundamental_facts(annual: pd.DataFrame, close: float | None = None) -> list[Fact]:
-    """Fakty z ostatniego rocznego sprawozdania (10-K) i porównanie z poprzednimi latami."""
+def fundamental_facts(
+    annual: pd.DataFrame, close: float | None = None, split_factor=None
+) -> list[Fact]:
+    """Fakty z ostatniego rocznego sprawozdania (10-K) i porównanie z poprzednimi latami.
+
+    split_factor: funkcja zwracająca łączny współczynnik splitów po podanej dacie. Kurs
+    z Yahoo Finance jest skorygowany o splity, a EPS ze sprawozdania nie, więc bez przeliczenia
+    C/Z po splicie byłby zaniżony (np. 1,0 zamiast 25 po splicie 25:1).
+    """
     if annual.empty:
         return []
     n = len(annual) - 1
@@ -445,7 +460,15 @@ def fundamental_facts(annual: pd.DataFrame, close: float | None = None) -> list[
     eps = _get(last, "eps_diluted")
     if eps is not None:
         label = "rozwodniony zysk na akcję (EPS)"
-        facts.append(Fact("fy_eps", label, eps, "USD", 2, FUNDAMENTAL, filing_src))
+        eps_src = filing_src
+        filed = last.get("eps_filed") if hasattr(last, "get") else None
+        factor = split_factor(filed) if split_factor is not None and pd.notna(filed) else 1.0
+        if factor and factor != 1.0:
+            eps = eps / factor
+            eps_src = (
+                f"{filing_src}; przeliczony o split akcji {factor:g}:1 po złożeniu sprawozdania"
+            )
+        facts.append(Fact("fy_eps", label, eps, "USD", 2, FUNDAMENTAL, eps_src))
         if close is not None and eps > 0:
             facts.append(
                 Fact(
@@ -455,10 +478,34 @@ def fundamental_facts(annual: pd.DataFrame, close: float | None = None) -> list[
                     "",
                     1,
                     FUNDAMENTAL,
-                    f"kurs zamknięcia (Yahoo Finance) / EPS ({filing_src})",
+                    f"kurs zamknięcia (Yahoo Finance) / EPS ({eps_src})",
                 )
             )
     return facts
+
+
+# Nazwy wskaźników w dopełniaczu do etykiet zmian („zmiana stopy bezrobocia w USA w ciągu
+# 12 miesięcy”); etykieta w formie „zmiana w ciągu 12 miesięcy: stopa bezrobocia” trafiała
+# do raportów bez odmiany.
+CHANGE_LABELS = {
+    "macro_fed_rate": "stopy funduszy federalnych",
+    "macro_10y": "rentowności 10-letnich obligacji USA",
+    "macro_unemployment": "stopy bezrobocia w USA",
+    "macro_inflation": "inflacji CPI rok do roku",
+}
+
+
+def cpi_yearly(cpi: pd.Series) -> pd.Series:
+    """Inflacja rok do roku w %: odczyt CPI względem odczytu z tego samego miesiąca rok wcześniej.
+
+    Porównanie po dacie, a nie po pozycji w serii: przy brakującym miesiącu (FRED nie ma
+    odczytu CPI za październik 2025) przesunięcie o 12 pozycji dałoby zmianę z 13 miesięcy.
+    """
+    cpi = cpi.dropna()
+    cpi.index = pd.to_datetime(cpi.index).to_period("M").to_timestamp()
+    year_ago = cpi.reindex(cpi.index - pd.DateOffset(months=12))
+    yearly = (cpi.to_numpy() / year_ago.to_numpy() - 1) * 100
+    return pd.Series(yearly, index=cpi.index).dropna()
 
 
 def macro_facts(macro: pd.DataFrame) -> list[Fact]:
@@ -481,16 +528,18 @@ def macro_facts(macro: pd.DataFrame) -> list[Fact]:
                 )
                 facts += _macro_change(series, fid, label, SERIES[col])
     if "cpi" in macro:
-        cpi = macro["cpi"].dropna()
-        if len(cpi) > 12:
-            inflation = (cpi.iloc[-1] / cpi.iloc[-13] - 1) * 100
-            date = cpi.index[-1].strftime("%Y-%m-%d")
-            source = f"FRED, seria {SERIES['cpi']}, odczyt z {date}; zmiana CPI z 12 miesięcy"
+        yearly = cpi_yearly(macro["cpi"])
+        if not yearly.empty:
+            date = yearly.index[-1].strftime("%Y-%m-%d")
+            source = (
+                f"FRED, seria {SERIES['cpi']}, odczyt z {date}; "
+                "zmiana CPI względem odczytu z tego samego miesiąca rok wcześniej"
+            )
             facts.append(
                 Fact(
                     "macro_inflation",
                     "inflacja CPI rok do roku",
-                    float(inflation),
+                    float(yearly.iloc[-1]),
                     "%",
                     1,
                     MACRO,
@@ -506,7 +555,6 @@ def macro_facts(macro: pd.DataFrame) -> list[Fact]:
                     source="FRED",
                 )
             )
-            yearly = (cpi / cpi.shift(12) - 1).dropna() * 100
             label = "inflacja CPI rok do roku"
             facts += _macro_change(yearly, "macro_inflation", label, SERIES["cpi"])
     return facts
@@ -519,8 +567,12 @@ def _macro_change(series: pd.Series, fid: str, label: str, series_id: str) -> li
     rośnie, spada, czy się utrzymuje.
     """
     date = series.index[-1]
-    earlier = series[series.index <= date - pd.DateOffset(months=12)]
-    if earlier.empty:
+    target = date - pd.DateOffset(months=12)
+    earlier = series[series.index <= target]
+    # Odczyt sprzed roku musi pochodzić z tego samego miesiąca (dla danych dziennych: z tego
+    # samego tygodnia). Przy brakującym odczycie (np. bez publikacji danych za październik 2025)
+    # wcześniejszy odczyt dałby zmianę z 13 miesięcy opisaną jako zmiana z 12 miesięcy.
+    if earlier.empty or (target - earlier.index[-1]).days > 7:
         return []
     then = earlier.index[-1].strftime("%Y-%m-%d")
     change = float(series.iloc[-1] - earlier.iloc[-1])
@@ -531,7 +583,7 @@ def _macro_change(series: pd.Series, fid: str, label: str, series_id: str) -> li
     return [
         Fact(
             f"{fid}_change_12m",
-            f"zmiana w ciągu 12 miesięcy: {label}",
+            f"zmiana {CHANGE_LABELS.get(fid, label)} w ciągu 12 miesięcy",
             change,
             "p.p.",
             2,

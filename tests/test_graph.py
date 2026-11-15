@@ -148,7 +148,7 @@ def test_wrong_period_goes_back_to_editor_with_labelled_facts():
         [
             "Analiza.",
             "W ostatnim roku kurs spadł o {{change_1m}}." + END,
-            "W ostatnim miesiącu kurs spadł o {{change_1m}}." + END,
+            "W ostatnim miesiącu kurs zmienił się o {{change_1m}}." + END,
         ],
         MarketData(facts=facts),
     )
@@ -197,7 +197,7 @@ NEWS_HEAD = "## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak.\n## Wiadomo�
 NEWS_END = f"\n{LAST_SECTION}\nTo nie jest rekomendacja."
 
 
-def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
+def test_news_analyst_gets_numbered_news_without_card_values_and_must_cite():
     facts = TECH + [Fact("change_1y", "zmiana 1R", 30.8, "%", 1, TECHNICAL)]
     news = NEWS + [{"published": "2026-10-02 09:00", "source": "CNBC", "headline": "Wyniki"}]
     sentence = "Spółka pokazała nowy produkt w tym tygodniu"
@@ -217,7 +217,8 @@ def test_news_analyst_gets_numbered_news_and_price_changes_and_must_cite():
     state = graph.invoke({"ticker": "T"})
     news_prompt = next(p for p in llm.prompts if "wiadomości rynkowych" in p)
     assert "[2] 2026-10-02, CNBC: Wyniki." in news_prompt
-    assert "| {{change_1y}} |" in news_prompt
+    # Wartości z karty nie trafiają do analityka wiadomości (nie przypisze ich artykułom).
+    assert "{{change_1y}}" not in news_prompt
     assert state["attempts"] == 2
     assert "nie wskazuje źródła" in llm.prompts[-1]
     assert "tygodniu [1]." in state["report"]

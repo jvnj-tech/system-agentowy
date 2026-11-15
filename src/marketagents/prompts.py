@@ -25,9 +25,13 @@ Zasady dotyczące treści:
 - Przy każdym odwołaniu napisz, czego dotyczy wartość: „przychody wzrosły o
   {{fy_revenue_growth}}”, a nie „odnotowano {{fy_revenue_growth}}”. Nie wymieniaj samych
   wartości bez nazw wielkości.
+- Ocenę (np. „wysoka rentowność”, „podwyższone stopy”) formułuj tylko w zdaniu z odwołaniem
+  do wartości, której dotyczy.
+- Nazwy i oceny z karty odmieniaj zgodnie ze zdaniem („w strefie neutralnej”, „przy górnej
+  wstędze”), a przy spadku wartości ze znakiem minus pisz „zmiana o …”, nie „spadek o -…”.
 - Pisz wyłącznie po polsku, bez angielskich wtrąceń.
-- Nie wspominaj w tekście karty faktów ani kolumny „ocena” (nie pisz „w ocenie karty”);
-  opisuj zjawisko bezpośrednio, zgodnie z oceną.
+- Nie wspominaj w tekście karty faktów, kolumny „ocena”, analiz ani sposobu przygotowania
+  raportu; opisuj zjawisko bezpośrednio, zgodnie z oceną.
 """
 
 # Wariant porównawczy do ewaluacji: model sam przepisuje liczby, bez odwołań i weryfikatora.
@@ -65,12 +69,13 @@ Jesteś redaktorem raportów analitycznych. Na podstawie analiz cząstkowych prz
 po polsku o spółce {ticker} w formacie Markdown, z sekcjami w tej kolejności:
 „## Podsumowanie”, „## Analiza techniczna”, „## Analiza fundamentalna”, „## Wiadomości”,
 „## Otoczenie makroekonomiczne”, „## Ograniczenia analizy”.
-Pomiń sekcję, dla której nie ma analizy cząstkowej, i wspomnij o tym w ograniczeniach.
+{missing}
 Podsumowanie ma 3–4 zdania. Ostatnia sekcja informuje, że raport nie jest rekomendacją inwestycyjną.
 - W sekcji „## Wiadomości” zachowaj przy każdym zdaniu numery źródeł w nawiasach
   kwadratowych, np. [2], dokładnie tak jak w analizie wiadomości.
-- Sekcje nie mogą przeczyć sobie nawzajem ani karcie faktów. Jeśli analiza wiadomości
-  przytacza opinię sprzeczną z danymi, zachowaj zaznaczenie tej rozbieżności.
+- Numery wiadomości stawiaj tylko przy informacjach z artykułów; wartości z karty faktów
+  nie mają numerów wiadomości (także w podsumowaniu).
+- Sekcje nie mogą przeczyć sobie nawzajem ani karcie faktów.
 - W sekcji ograniczeń opisz konkretne ograniczenia tej analizy (np. brakujące dane, dane
   roczne zamiast kwartalnych). Zakres dat danych zostanie dopisany automatycznie.
 Zwróć wyłącznie treść raportu.
@@ -120,18 +125,19 @@ opisz po polsku najważniejsze wątki z ostatnich dni i ich możliwy wpływ na s
 (pozytywny, negatywny lub neutralny). Pisz w 2–3 akapitach.
 - Każde zdanie zakończ numerem wiadomości, na której się opiera, w nawiasie kwadratowym,
   np. [2] albo [1][4]. Nie podawaj informacji, której nie ma w żadnej wiadomości.
-- Opinie, oceny i prognozy autorów artykułów przypisuj im („według [3]…”), a nie podawaj
-  ich jako faktów.
+- Opinie, oceny i prognozy autorów artykułów przypisuj im („według autorów artykułu…”,
+  z numerem wiadomości na końcu zdania), a nie podawaj ich jako faktów.
 - Wymieniaj tylko te nazwy firm, osób, produktów i instytucji, które występują w cytowanej
   wiadomości, i nie przypisuj wiadomości innemu źródłu niż podane na liście.
-- Karta faktów zawiera zmiany kursu spółki. Jeśli artykuł opisuje zachowanie kursu inaczej
-  niż karta (np. pisze o braku wzrostów, gdy karta pokazuje wzrost), zaznacz tę rozbieżność
-  zamiast powtarzać opinię.
+- Nie podawaj kursu ani zmian kursu z innych źródeł niż artykuły i nie porównuj artykułów
+  ze sobą jako „rozbieżności”: artykuły opisują różne dni.
 - Wiadomość o innej spółce, branży lub całym rynku opisuj tylko wtedy, gdy wprost dotyczy
   {ticker}, i zaznacz, że to informacja o branży lub rynku.
 - Liczbę z artykułu przytaczaj tylko w zdaniu z numerem tej wiadomości i w tej samej
   wartości co w źródle („sprzedaż spadła o 3% [4]”); nie przeliczaj jej ani nie zaokrąglaj
-  inaczej niż autor.
+  inaczej niż autor. Zapisuj ją po polsku: przecinek dziesiętny, „mld USD” zamiast „billion”.
+  Liczby, której nie ma w całości w opisie artykułu (opis bywa ucięty), nie uzupełniaj, a
+  zamiast liczby nie pisz ogólników („określony poziom”, „na dany rok”): pomiń tę informację.
 
 {rules}
 Karta faktów:

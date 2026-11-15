@@ -26,6 +26,8 @@ import os
 import re
 from dataclasses import dataclass
 
+from marketagents.sentences import split as split_sentences
+
 CITATION = re.compile(r"\[(\d{1,2})\]")
 PLACEHOLDER = re.compile(r"\{\{\s*[A-Za-z0-9_]+\s*\}\}")
 SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -341,7 +343,7 @@ class ContentIssue:
 
 
 def sentences(text: str) -> list[str]:
-    return [s.strip() for s in SENTENCE.split(text) if s.strip() and not s.lstrip().startswith("#")]
+    return [s.strip() for s in split_sentences(text) if not s.lstrip().startswith("#")]
 
 
 def _short(sentence: str) -> str:

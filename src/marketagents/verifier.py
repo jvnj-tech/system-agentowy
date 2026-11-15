@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from html import escape
 
 from marketagents.facts import Fact, FactSheet
+from marketagents.form import check_form
 from marketagents.grounding import (
     check_forecasts,
     check_news_content,
@@ -34,6 +35,7 @@ from marketagents.grounding import (
     strip_news_numbers,
 )
 from marketagents.interpretation import InterpretationIssue, check_interpretations
+from marketagents.sentences import split as split_sentences
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 # Model czasem otacza odwołanie znakami ` jak kod; przy podstawianiu są one usuwane.
@@ -133,6 +135,8 @@ class Verification:
     repeated: list[str] = field(default_factory=list)
     # Liczba wpisana wprost -> zdanie, w którym stoi (żeby autor wiedział, gdzie poprawić).
     contexts: dict[str, str] = field(default_factory=dict)
+    # Liczba spoza cytowanej wiadomości -> numer innej wiadomości, która ją podaje.
+    news_hints: dict[str, int] = field(default_factory=dict)
     # Zdania o wiadomościach bez numeru źródła i numery spoza listy newsów.
     uncited: list[str] = field(default_factory=list)
     bad_citations: list[str] = field(default_factory=list)
@@ -170,6 +174,12 @@ class Verification:
                 out.append(
                     f"Liczba „{n}”{where} powtarza bez odwołania wartość {{{{{fact_id}}}}}, "
                     "która już stoi w zdaniu; usuń ją"
+                )
+            elif n in self.news_hints:
+                k = self.news_hints[n]
+                out.append(
+                    f"Liczba „{n}”{where} nie występuje w cytowanej wiadomości, ale podaje ją "
+                    f"wiadomość [{k}]; zmień numer wiadomości przy tej informacji na [{k}]"
                 )
             elif fact_id:
                 out.append(
@@ -351,15 +361,7 @@ def label_numbers(facts: FactSheet) -> frozenset[int]:
 
 def sentences(text: str) -> list[str]:
     """Podział tekstu na zdania; kropka w liczbie („3.2”) i po skrócie nie kończy zdania."""
-    out, start = [], 0
-    for match in SENTENCE_END.finditer(text):
-        head = text[start : match.start()]
-        if "\n" not in match.group(0) and ABBREVIATION.search(head):
-            continue
-        out.append(head)
-        start = match.end()
-    out.append(text[start:])
-    return [s for s in out if s.strip()]
+    return split_sentences(text)
 
 
 # Rok w tekście, np. „w 2025 r.” (bez dat ISO, które są usuwane wcześniej).
@@ -415,6 +417,7 @@ def verify(
     suggestions: dict[str, str] = {}
     repeated: list[str] = []
     contexts: dict[str, str] = {}
+    news_hints: dict[str, int] = {}
     checked = 0
     previous: list[Fact] = []
     for sentence in sentences(LIST_MARKER.sub(" ", text)):
@@ -453,12 +456,17 @@ def verify(
             )
             if other is not None:
                 suggestions[raw] = other.id
+            elif cited and news:
+                hint = other_news(sentence, raw, news)
+                if hint is not None:
+                    news_hints[raw] = hint
             if same is not None:
                 repeated.append(raw)
 
     uncited: list[str] = []
     bad: list[str] = []
     content = check_forecasts(text) + check_spelled_numbers(text, news) + check_records(text)
+    content += check_form(text, facts)
     if news_count is not None:
         # Przy pustej liście nie ma czego cytować, a każdy numer jest błędny.
         part = news_part(text)
@@ -485,10 +493,27 @@ def verify(
         suggestions=suggestions,
         repeated=repeated,
         contexts=contexts,
+        news_hints=news_hints,
         uncited=uncited,
         bad_citations=bad,
         news_count=news_count or 0,
     )
+
+
+def other_news(sentence: str, raw: str, news: list[dict]) -> int | None:
+    """Numer niecytowanej wiadomości, która podaje liczbę ze zdania (model pomylił numer).
+
+    Bez tej podpowiedzi redaktor dostawał tylko informację, że liczby nie ma w cytowanej
+    wiadomości, i w kolejnych poprawkach zostawiał ten sam błędny numer.
+    """
+    plain = CITATION.sub(" ", sentence)
+    pattern = re.compile(rf"(?<![\w.,]){re.escape(raw)}(?![\w]|[.,]\d)")
+    for k in range(1, len(news) + 1):
+        if f"[{k}]" in sentence:
+            continue
+        if not pattern.search(strip_news_numbers(f"{plain} [{k}]", news)):
+            return k
+    return None
 
 
 def cite(text: str, news: list[dict]) -> str:
@@ -559,9 +584,13 @@ def render(text: str, facts: FactSheet, html: bool = False) -> str:
             value = f'<span class="fact" tabindex="0" data-zrodlo="{hint}">{escape(value)}</span>'
         return value + trailing
 
-    return TRAILING_UNIT.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))
+    out = TRAILING_UNIT.sub(substitute, PLACEHOLDER_IN_CODE.sub(r"{{\1}}", text))
+    # Wartość z jednostką zakończoną kropką („-0,21 p.p.”) na końcu zdania nie dostaje drugiej
+    # kropki („p.p..”).
+    return DOUBLE_DOT.sub(r"\1\2", out)
 
 
+DOUBLE_DOT = re.compile(r"(p\.\s?p\.)((?:</span>)?)\.")
 HTML_TAG = re.compile(r"(<[^>]*>)")
 
 

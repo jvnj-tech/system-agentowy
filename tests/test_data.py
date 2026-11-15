@@ -272,3 +272,18 @@ def test_news_selection_weighs_importance_and_recency():
     assert headlines[0] == "Apple shares edge higher in morning trade"
     assert "Stocks to watch this week include Apple" not in headlines
     assert select_news([], "AAPL", None) == []
+
+
+def test_session_in_progress_is_dropped_and_splits_after_date():
+    from datetime import datetime
+
+    from marketagents.data.prices import NEW_YORK, completed_sessions, splits_after
+
+    idx = pd.to_datetime(["2026-11-12", "2026-11-13"])
+    prices = pd.DataFrame({"close": [10.0, 11.0], "splits": [0.0, 25.0]}, index=idx)
+    during = datetime(2026, 11, 13, 12, 0, tzinfo=NEW_YORK)
+    after = datetime(2026, 11, 13, 17, 0, tzinfo=NEW_YORK)
+    assert len(completed_sessions(prices, during)) == 1
+    assert len(completed_sessions(prices, after)) == 2
+    assert splits_after(prices, "2026-11-12") == 25.0
+    assert splits_after(prices, "2026-11-13") == 1.0
