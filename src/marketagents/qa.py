@@ -15,10 +15,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from marketagents import prompts
 from marketagents.facts import FactSheet
-from marketagents.grounding import check_news_content
 from marketagents.interpretation import mark_sentences, prompt_table
 from marketagents.llm import message_text
-from marketagents.verifier import CITATION, cite, mark_unverified, render, verify
+from marketagents.verifier import cite, mark_unverified, render, verify
 
 MAX_FIXES = 1
 MAX_HISTORY = 6
@@ -66,17 +65,16 @@ def answer_question(
     )
     draft = message_text(llm.invoke(prompt))
     for attempt in range(MAX_FIXES + 1):
-        result = verify(draft, facts)
-        content = check_news_content(draft, news, (ticker, company))
-        bad = sorted({n for n in CITATION.findall(draft) if not 1 <= int(n) <= len(news)})
-        issues = result.issues() + [c.message for c in content]
-        issues += [f"Numer [{n}] nie odpowiada żadnej wiadomości" for n in bad]
+        # Z listą wiadomości weryfikator dopuszcza liczby przytoczone z cytowanej wiadomości
+        # i sprawdza nazwy oraz numery źródeł, tak jak w raporcie.
+        result = verify(draft, facts, news=news, names=(ticker, company or ticker))
+        issues = result.issues()
         if not issues:
             return Answer(cite(result.rendered, news), verified=True)
         if attempt == MAX_FIXES:
             break
         fix = prompts.QA_FIX.format(issues="\n".join(f"- {i}" for i in issues), draft=draft)
         draft = message_text(llm.invoke(prompt + "\n\n" + fix))
-    flagged = result.flagged_sentences + [c.sentence for c in content]
+    flagged = result.flagged_sentences
     marked = render(mark_unverified(mark_sentences(draft, flagged), result.to_mark), facts)
     return Answer(cite(marked, news), verified=False)

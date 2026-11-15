@@ -86,3 +86,18 @@ def test_forecast_in_answer_is_marked_when_not_fixed():
     answer, _ = ask(["Kurs ma przestrzeń do dalszych wzrostów."] * 2)
     assert not answer.verified
     assert "[niezweryfikowana interpretacja]" in answer.text
+
+
+def test_number_quoted_from_cited_news_is_accepted():
+    news = [
+        {
+            "published": "2026-11-05 10:00",
+            "source": "Yahoo",
+            "headline": "Marriott Declares Quarterly Cash Dividend",
+            "summary": "a quarterly cash dividend of 73 cents per share",
+            "url": "https://x.example/1",
+        }
+    ]
+    llm = RecordingLLM(responses=["Marriott ogłosił dywidendę 73 centów na akcję [1]."], prompts=[])
+    answer = answer_question(llm, "MAR", "Ile wynosi dywidenda?", REPORT, FACTS, news=news)
+    assert answer.verified
