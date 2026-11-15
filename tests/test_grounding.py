@@ -36,6 +36,10 @@ def test_first_word_is_checked_when_it_is_a_name_from_the_news():
     assert not issues("*Błąd w artykule:* Choć chip jest nowy, opis jest niepełny [1].")
     # polskie nazwy geograficzne i ogólne są pomijane
     assert not issues("Według Bank of America sprzedaż w Ameryce Północnej i Izraelu rośnie [2].")
+    # fałszywe alarmy z pomiarów a7fc756 (CMCSA, HON, TXN)
+    assert not issues("Spółka działa w Stanach Zjednoczonych i Wielkiej Brytanii [2].")
+    assert not issues("Prezes mówił o Zjednoczonych Emiratach Arabskich i Europie [2].")
+    assert not issues("Spółka rozwija urządzenia dla Internetu rzeczy [2].")
 
 
 def test_proper_name_extraction():
