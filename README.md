@@ -9,7 +9,7 @@ Projekt powstał w ramach pracy inżynierskiej na Politechnice Wrocławskiej.
 > NASDAQ-100 companies. All numbers are computed by deterministic Python code and stored in
 > a fact sheet; the agents only reference facts (`{{rsi_14}}`), and a rule-based verifier
 > checks every number, year, period and qualitative description before the report is shown.
-> Streamlit UI with Plotly charts and a Q&A assistant, 173 unit tests, CI on GitHub Actions.
+> Streamlit UI with Plotly charts and a Q&A assistant, 193 unit tests, CI on GitHub Actions.
 
 ## Najważniejsze cechy
 
@@ -23,7 +23,7 @@ Projekt powstał w ramach pracy inżynierskiej na Politechnice Wrocławskiej.
   modelu po wyczerpaniu darmowego limitu i test kwalifikacyjny modeli.
 - **Ewaluacja:** wariant porównawczy bez karty faktów, wstrzykiwanie błędów i porównanie
   weryfikatora z modelem w roli sędziego.
-- **Jakość kodu:** 173 testy (pytest, działają bez klucza API), ruff, GitHub Actions.
+- **Jakość kodu:** 193 testy (pytest, działają bez klucza API), ruff, GitHub Actions.
 
 Technologie: Python 3.11, LangGraph, LangChain, pandas, Streamlit, Plotly, pytest, ruff, uv.
 
@@ -241,8 +241,10 @@ src/marketagents/
   cli.py                 polecenia: pobieranie danych i generowanie raportu
   facts.py               karta faktów
   verifier.py            weryfikacja liczb, lat i numerów źródeł w raporcie
+  sentences.py           podział tekstu na zdania, wspólny dla reguł weryfikatora
   grounding.py           zgodność zdań o wiadomościach ze źródłem, prognozy bez podstaw
-  interpretation.py      zgodność opisu z liczbami i ocenami kodu
+  interpretation.py      zgodność opisu z liczbami i ocenami kodu, nazwa wielkości przy odwołaniu
+  form.py                reguły formy raportu (np. „spadek o -…”, numer wiadomości przy wartości z karty)
   coverage.py            opis zakresu danych dopisywany do raportu
   evaluation.py          ewaluacja: wyniki raportów, wariant bez karty, wstrzyknięte błędy
   graph.py               graf agentów (LangGraph)
