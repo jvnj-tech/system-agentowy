@@ -9,7 +9,7 @@ Projekt powstał w ramach pracy inżynierskiej na Politechnice Wrocławskiej.
 > NASDAQ-100 companies. All numbers are computed by deterministic Python code and stored in
 > a fact sheet; the agents only reference facts (`{{rsi_14}}`), and a rule-based verifier
 > checks every number, year, period and qualitative description before the report is shown.
-> Streamlit UI with Plotly charts and a Q&A assistant, 193 unit tests, CI on GitHub Actions.
+> Streamlit UI with Plotly charts and a Q&A assistant, 194 unit tests, CI on GitHub Actions.
 
 ## Najważniejsze cechy
 
