@@ -141,8 +141,8 @@ def generate_report(ticker: str, ma: MovingAverages) -> dict:
             nonlocal editor_runs
             editor_runs = 0
             st.write(
-                f"⚠ {spec} wyczerpał limit zapytań; raport zaczyna się od nowa "
-                "na następnym modelu z listy."
+                f"⚠ {spec} nie może dokończyć raportu (limit zapytań albo przeciążenie "
+                "serwera); raport zaczyna się od nowa na następnym modelu z listy."
             )
 
         usage = UsageCounter()

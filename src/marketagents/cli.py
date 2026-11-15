@@ -117,7 +117,9 @@ def report(argv: list[str] | None = None) -> None:
         lambda node: print(
             f"[{time.strftime('%H:%M:%S')}] gotowe: {STEP_NAMES.get(node, node)}", flush=True
         ),
-        on_restart=lambda spec: print(f"{spec}: limit wyczerpany, raport od nowa na następnym"),
+        on_restart=lambda spec: print(
+            f"{spec}: limit albo przeciążenie serwera, raport od nowa na następnym"
+        ),
     )
     print()
 

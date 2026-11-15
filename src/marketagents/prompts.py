@@ -166,7 +166,10 @@ karty faktów i listy wiadomości. Jeśli odpowiedzi nie ma w tych materiałach,
 wprost i nie zgaduj. Nie udzielaj rekomendacji kupna ani sprzedaży.
 - Przy informacji z wiadomości podaj jej numer w nawiasie kwadratowym, np. [2], i wymieniaj
   tylko nazwy, które występują w tej wiadomości.
-- Opinie i prognozy autorów artykułów przypisuj im („według [2]…”).
+- Opinie i prognozy autorów artykułów przypisuj im („według autorów artykułu…”, z numerem
+  wiadomości na końcu zdania).
+- Wnioskami raportu są jego podsumowanie i oceny w sekcjach. Na pytanie o wnioski, ogólną
+  ocenę albo najważniejsze informacje odpowiadaj na ich podstawie.
 
 {rules}
 Karta faktów:

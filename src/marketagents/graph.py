@@ -8,8 +8,8 @@ dane -> fakty --+--> analityk fundamentalny --+-> redaktor -> weryfikator --(zgo
 Analitycy działają równolegle; analityk, dla którego zabrakło danych, jest pomijany.
 Weryfikator sprawdza raport złożony przez redaktora, a błędy poprawia redaktor (najwyżej
 MAX_FIXES razy). Po pozytywnej weryfikacji redaktor jeden raz przegląda raport, a poprawiony
-raport ponownie sprawdza weryfikator. Analityk wiadomości dostaje ponumerowaną listę newsów
-o spółce i zmiany kursu z karty, a każde zdanie o wiadomościach musi wskazywać numer źródła.
+raport ponownie sprawdza weryfikator. Analityk wiadomości dostaje symbol spółki i ponumerowaną
+listę newsów, bez wartości z karty, a każde zdanie o wiadomościach musi wskazywać numer źródła.
 Opis zakresu danych w sekcji ograniczeń dopisuje kod.
 """
 
@@ -85,7 +85,7 @@ def section_issues(draft: str, analyses: dict[str, str]) -> list[str]:
     return issues
 
 
-# Fakty, które dostaje analityk wiadomości, by porównać opinie z artykułów z danymi.
+# Fakty, które dostaje analityk wiadomości: tylko symbol spółki.
 # Analityk wiadomości nie dostaje wartości z karty: gdy dostawał zmiany kursu, przepisywał je
 # do sekcji wiadomości z numerami artykułów i zestawiał z artykułami jako „rozbieżności”,
 # choć artykuły dotyczyły innych dni (przegląd raportów z 14.11.2026).

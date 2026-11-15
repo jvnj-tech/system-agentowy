@@ -101,3 +101,10 @@ def test_number_quoted_from_cited_news_is_accepted():
     llm = RecordingLLM(responses=["Marriott ogłosił dywidendę 73 centów na akcję [1]."], prompts=[])
     answer = answer_question(llm, "MAR", "Ile wynosi dywidenda?", REPORT, FACTS, news=news)
     assert answer.verified
+
+
+def test_prompt_treats_summary_as_the_reports_conclusions():
+    _, llm = ask(["Raport opisuje RSI {{rsi_14}}."])
+    prompt = llm.prompts[0]
+    assert "Wnioskami raportu są jego podsumowanie" in prompt
+    assert "według autorów artykułu" in prompt
