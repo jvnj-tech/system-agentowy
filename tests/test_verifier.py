@@ -29,6 +29,13 @@ def test_unknown_placeholder_is_reported():
     assert "[brak danych: volume]" in result.rendered
 
 
+
+def test_malformed_placeholder_is_reported():
+    # Odpowiedź asystenta MAR (pomiary a7fc756) przeszła weryfikację z takim odwołaniem.
+    result = verify("Wzrost w ostatnim roku o {{change_4m - brak, więc pomijam}}.", FACTS)
+    assert not result.ok
+    assert result.unknown_ids == ["change_4m - brak, więc pomijam"]
+
 def test_invented_number_is_reported():
     result = verify("RSI wynosi 75,3, a kurs {{close}}.", FACTS)
     assert result.unverified_numbers == ["75,3"]

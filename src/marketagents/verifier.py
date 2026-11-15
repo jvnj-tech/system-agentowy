@@ -39,6 +39,7 @@ from marketagents.sentences import split as split_sentences
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 # Model czasem otacza odwołanie znakami ` jak kod; przy podstawianiu są one usuwane.
+BRACES = re.compile(r"\{\{([^{}]*)\}\}")
 PLACEHOLDER_IN_CODE = re.compile(r"`\{\{\s*([A-Za-z0-9_]+)\s*\}\}`")
 # Liczba w zapisie polskim lub angielskim, z opcjonalnym separatorem tysięcy (spacja).
 # Liczby w złożeniach słownych, np. „10-letnie obligacje”, sprawdza osobno wzorzec COMPOUND.
@@ -399,6 +400,10 @@ def verify(
     allowed = allowed | indicator_periods(facts) | label_numbers(facts)
     periods = label_periods(facts)
     unknown = sorted({m.group(1) for m in PLACEHOLDER.finditer(text) if m.group(1) not in facts})
+    # Nawiasy z treścią, która nie jest identyfikatorem („{{change_4m - brak}}”), też są błędem.
+    unknown += sorted(
+        {b.strip() for b in BRACES.findall(text) if not PLACEHOLDER.fullmatch("{{" + b + "}}")}
+    )
     years = fact_years(facts)
     dates = fact_dates(facts)
 
