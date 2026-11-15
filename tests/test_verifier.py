@@ -36,6 +36,12 @@ def test_malformed_placeholder_is_reported():
     assert not result.ok
     assert result.unknown_ids == ["change_4m - brak, więc pomijam"]
 
+
+def test_number_with_letter_suffix_is_not_split():
+    # „3,44b” nie może dać liczby „3” (raport VRTX, pomiary bf6dce8); zapis sprawdza reguła formy
+    result = verify("Przychody wyniosły 3,44b.", FACTS)
+    assert not any("„3”" in m for m in result.issues())
+
 def test_invented_number_is_reported():
     result = verify("RSI wynosi 75,3, a kurs {{close}}.", FACTS)
     assert result.unverified_numbers == ["75,3"]

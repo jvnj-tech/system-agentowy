@@ -154,6 +154,13 @@ COMMON_PREFIXES = (
     "egipt",
     "unii",
     "unia",
+    "blisk",
+    # Rekomendacje biur maklerskich tłumaczone z angielskiego („Buy” → „Kupuj”).
+    "kupuj",
+    "sprzedaj",
+    "trzymaj",
+    "przeważaj",
+    "niedoważaj",
     # Ogólne określenia tłumaczone z angielskiego („Internet of Things” → „Internet rzeczy”).
     "internet",
 )

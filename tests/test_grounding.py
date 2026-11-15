@@ -40,6 +40,9 @@ def test_first_word_is_checked_when_it_is_a_name_from_the_news():
     assert not issues("Spółka działa w Stanach Zjednoczonych i Wielkiej Brytanii [2].")
     assert not issues("Prezes mówił o Zjednoczonych Emiratach Arabskich i Europie [2].")
     assert not issues("Spółka rozwija urządzenia dla Internetu rzeczy [2].")
+    # pomiary bf6dce8 (MAR, ISRG, ROST)
+    assert not issues("Popyt rósł mimo konfliktu na Bliskim Wschodzie [2].")
+    assert not issues("Średnia rekomendacja odpowiada rekomendacji Kupuj [2].")
 
 
 def test_proper_name_extraction():

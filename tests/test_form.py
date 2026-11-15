@@ -68,6 +68,9 @@ def test_decimal_point_vague_phrase_and_english():
     assert messages("Termin publikacji wyznaczono na konkretny dzień listopada [6].")
     assert messages("Incydent miał miejsce w facility w Indiach [3].")
     assert messages("Przychody wyniosły 6,12B USD [4].")
+    # raport VRTX (pomiary bf6dce8): „3,44b” z małą literą
+    assert messages("Przychody wyniosły 3,44b wobec 3,08b rok wcześniej [2].")
+    assert not messages("Przychody wyniosły 3,44 mld USD [2].")
 
 
 def test_discrepancy_with_card():

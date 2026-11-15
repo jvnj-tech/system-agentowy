@@ -80,7 +80,7 @@ DISCREPANCY = re.compile(
 ENGLISH = re.compile(
     r"\b(?:facility|facilities|profit|beat|guidance|outlook|revenue|earnings|shares|stock"
     r"|upgrade|downgrade|buyback|billion|million|trillion|yield|deal|growth|selloff)\b"
-    r"|(?<![\w.])\d+(?:,\d+)?\s?[BMK]\b(?!\w)"
+    r"|(?<![\w.])\d+(?:[.,]\d+)?\s?(?:[BMK]|bn|[bmk](?<=\d[bmk]))\b(?!\w)"
 )
 
 

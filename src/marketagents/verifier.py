@@ -45,7 +45,7 @@ PLACEHOLDER_IN_CODE = re.compile(r"`\{\{\s*([A-Za-z0-9_]+)\s*\}\}`")
 # Liczby w złożeniach słownych, np. „10-letnie obligacje”, sprawdza osobno wzorzec COMPOUND.
 NUMBER = re.compile(
     r"(?<![\w.,])[-−+]?\d{1,3}(?:[  ]\d{3})+(?:[.,]\d+)?(?![\w])"
-    r"|(?<![\w.,])[-−+]?\d+(?:[.,]\d+)?(?![\w]|-[^\W\d])"
+    r"|(?<![\w.,])[-−+]?\d+(?:[.,]\d+)?(?![\w]|-[^\W\d]|[.,]\d)"
 )
 # Liczba w złożeniu słownym („10-letnich”, „5-procentowy”); dopuszczalna tylko wtedy, gdy jest
 # okresem albo liczbą z opisu faktu. Pomijane są nazwy formularzy SEC („10-K”, „10-Q”).
