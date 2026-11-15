@@ -60,15 +60,6 @@ INDEX_NAME = re.compile(
     r"NASDAQ[-\s\u00a0\u202f]?100|S&P[-\s\u00a0\u202f]?500|Russell[-\s\u00a0\u202f]?2000",
     re.IGNORECASE,
 )
-# Koniec zdania: znak końca i odstęp albo nowy wiersz. Kropka po skrócie („ok. 61”, „np. RSI”)
-# nie kończy zdania, żeby podpowiedź wskazała fakt, przy którym stoi liczba.
-SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
-ABBREVIATION = re.compile(
-    r"(?<![\w.])(?:ok|np|m\.in|tj|tzn|tzw|wg|ang|por|zob|ca|mln|mld|tys|pkt|proc|r|ds|itd|itp"
-    r"|nr|dot|godz|mies|tyg|prof|dr|mgr|inż|św|ul|wyd|red|zł)\.$",
-    re.IGNORECASE,
-)
-
 # Okresy wskaźników, które mogą wystąpić w tekście jako nazwy, np. „RSI(14)”, „SMA 200”.
 DEFAULT_ALLOWED = frozenset({2, 9, 12, 14, 20, 26, 50, 52, 200})
 # Okres jest dopuszczany tylko przy nazwie wskaźnika („RSI(14)”, „SMA 50 i 200”,

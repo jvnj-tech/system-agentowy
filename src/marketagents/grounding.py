@@ -30,7 +30,6 @@ from marketagents.sentences import split as split_sentences
 
 CITATION = re.compile(r"\[(\d{1,2})\]")
 PLACEHOLDER = re.compile(r"\{\{\s*[A-Za-z0-9_]+\s*\}\}")
-SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 # Słowo pisane wielką literą lub w całości wielkimi literami (np. „Microsoftem”, „LSEG”).
 PROPER = re.compile(r"(?<![\w&])[A-ZĄĆĘŁŃÓŚŹŻ][\w&’'-]*")
 # Nazwy, które nie wymagają potwierdzenia w źródle: nazwy krajów i instytucji pisane

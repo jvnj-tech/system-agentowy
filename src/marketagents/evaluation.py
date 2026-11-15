@@ -56,11 +56,11 @@ from marketagents.interpretation import (
     HEDGE,
     NEGATION,
     PERIODS,
-    SENTENCE,
     label,
     periods_in,
 )
 from marketagents.llm import message_text
+from marketagents.sentences import spans
 from marketagents.verifier import (
     CITATION,
     DEFAULT_ALLOWED,
@@ -329,13 +329,8 @@ def _numeric_refs(draft: str, facts: FactSheet) -> list[re.Match]:
 
 
 def _sentences(text: str) -> list[tuple[int, str]]:
-    """Zdania (podział jak w module interpretation) z pozycją początku w tekście."""
-    out, start = [], 0
-    for brk in SENTENCE.finditer(text):
-        out.append((start, text[start : brk.start()]))
-        start = brk.end()
-    out.append((start, text[start:]))
-    return [(i, sentence) for i, sentence in out if sentence.strip()]
+    """Zdania z pozycją początku w tekście, podzielone tak samo jak w weryfikatorze."""
+    return spans(text)
 
 
 def _value_text(fact: Fact, value: float, draft: str, end: int) -> str:

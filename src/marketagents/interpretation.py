@@ -26,7 +26,6 @@ from marketagents.facts import FactSheet
 from marketagents.sentences import split as split_sentences
 
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
-SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 
 # Fakty, których znak określa kierunek zmiany.
 DIRECTIONAL = re.compile(r"^(?:change_\w+|fy_\w+_growth(?:_prev)?|macro_\w+_change_12m)$")
