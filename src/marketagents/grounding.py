@@ -420,6 +420,15 @@ def known(name: str, words: set[str]) -> bool:
     return len(parts) > 1 and all(any(same_word(p, w) for w in words) for p in parts)
 
 
+# Zwykłe słowa angielskie pisane w nagłówkach wielką literą; bez tej listy np. „Now” z nagłówka
+# sprawia, że polskie „Nowy” na początku zdania jest uznawane za nazwę (raport ISRG, 16.11).
+HEADLINE_WORDS = {
+    "now", "new", "how", "why", "what", "when", "who", "this", "that", "the", "are", "was",
+    "will", "could", "should", "would", "after", "with", "for", "from", "its", "has", "have",
+    "can", "may", "into", "over", "more", "most", "just", "here", "top", "big", "best",
+}
+
+
 def news_names(news: list[dict]) -> set[str]:
     """Słowa pisane w wiadomościach zawsze wielką literą, czyli nazwy („Nvidia”, „Reuters”)."""
     text = " ".join(
@@ -428,7 +437,7 @@ def news_names(news: list[dict]) -> set[str]:
     )
     words = re.findall(r"[\w&’'-]+", text)
     lower = {w.lower() for w in words if w[0].islower()}
-    return {w.lower() for w in words if w[0].isupper() and len(w) > 2} - lower
+    return {w.lower() for w in words if w[0].isupper() and len(w) > 2} - lower - HEADLINE_WORDS
 
 
 def proper_names(sentence: str, first_names: set[str] = frozenset()) -> list[str]:

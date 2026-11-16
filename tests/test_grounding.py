@@ -45,6 +45,12 @@ def test_first_word_is_checked_when_it_is_a_name_from_the_news():
     assert not issues("Średnia rekomendacja odpowiada rekomendacji Kupuj [2].")
 
 
+def test_first_word_is_not_a_name_because_of_a_headline_word():
+    news = [{"headline": "How Its Story Has Changed Now", "summary": "Board adds Aaron Martin."}]
+    found = check_news_content("Nowy członek rady to Aaron Martin [1].", news, ["ISRG"])
+    assert not found
+
+
 def test_proper_name_extraction():
     assert proper_names("Nvidia ogłosiła współpracę z Danaher i LSEG [1].") == ["Danaher", "LSEG"]
     assert same_word("Microsoftem", "microsoft") and same_word("Intela", "intel")
