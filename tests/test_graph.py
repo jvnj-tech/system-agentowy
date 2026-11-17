@@ -50,7 +50,7 @@ def test_only_technical_analysis_when_other_data_missing():
 
 def test_all_analysts_run_and_editor_sees_their_work():
     data = MarketData(facts=TECH + FUND + MACROS, news=NEWS)
-    responses = ["Analiza A."] * 4 + ["Raport {{close}}." + END]
+    responses = ["Analiza A."] * 4 + ["Raport, kurs {{close}}." + END]
     state, llm = run(responses, data)
     assert set(state["analyses"]) == {
         "techniczna",
@@ -93,12 +93,12 @@ def test_unfixable_report_is_marked_after_max_attempts():
 
 def test_run_report_merges_updates_like_invoke():
     data = MarketData(facts=TECH + FUND, news=NEWS)
-    responses = ["Analiza A."] * 3 + ["Raport {{close}}." + END]
+    responses = ["Analiza A."] * 3 + ["Raport, kurs {{close}}." + END]
     steps: list[str] = []
     llm = RecordingLLM(responses=responses, prompts=[])
     state = run_report(build_graph(llm, lambda ticker: data, review=False), "TEST", steps.append)
     assert set(state["analyses"]) == {"techniczna", "fundamentalna", "wiadomości"}
-    assert body(state["report"]) == "Raport 100,00 USD." + END
+    assert body(state["report"]) == "Raport, kurs 100,00 USD." + END
     assert steps[0] == "load_data" and steps[-1] == "finalize"
     assert {"editor", "verifier", "macro_analyst"} <= set(steps)
 
@@ -114,7 +114,7 @@ def test_truncated_report_goes_back_to_editor():
 
 
 def test_technical_analyst_prompt_describes_moving_averages():
-    _, llm = run(["Analiza.", "Raport {{close}}." + END], MarketData(facts=TECH))
+    _, llm = run(["Analiza.", "Raport, kurs {{close}}." + END], MarketData(facts=TECH))
     technical = llm.prompts[0]
     assert "wzajemny układ średnich" in technical
     assert "z opóźnieniem" in technical
@@ -133,7 +133,7 @@ def test_wrong_interpretation_goes_back_to_editor_and_is_marked():
 
 def test_analyst_output_goes_to_editor_without_separate_verification():
     state, llm = run(
-        ["RSI wynosi 70,1.", "Raport {{rsi_14}}." + END],
+        ["RSI wynosi 70,1.", "Raport, RSI {{rsi_14}}." + END],
         MarketData(facts=TECH),
     )
     # Analiza cząstkowa nie jest sprawdzana osobno: weryfikator sprawdza raport redaktora.
@@ -165,7 +165,7 @@ class PromptLLM(FakeListChatModel):
     def _call(self, messages, *args, **kwargs):
         prompt = messages[-1].content
         if "Jesteś redaktorem" in prompt:
-            return "Raport {{close}}." + END
+            return "Raport, kurs {{close}}." + END
         return "Analiza z liczbą 12,3."
 
 
@@ -228,7 +228,7 @@ def test_news_analyst_gets_numbered_news_without_card_values_and_must_cite():
 
 def test_empty_model_answer_is_retried_and_then_skipped():
     state, llm = run(
-        ["", "", "Raport {{close}}." + END],
+        ["", "", "Raport, kurs {{close}}." + END],
         MarketData(facts=TECH),
     )
     # Pusta odpowiedź analityka: ponowienie, a potem pominięcie analizy.
@@ -255,7 +255,7 @@ def test_report_restarts_on_next_model_after_daily_limit(tmp_path):
             return super()._call(messages, *args, **kwargs)
 
     first = LimitedModel(responses=["Analiza A."], left=1)
-    second = FakeListChatModel(responses=["Analiza B.", "Raport B {{close}}." + END])
+    second = FakeListChatModel(responses=["Analiza B.", "Raport B, kurs {{close}}." + END])
     pool = ModelPool(
         specs=["groq:a", "gemini:b"], models=[first, second], state_file=tmp_path / "limity.json"
     )
@@ -270,7 +270,7 @@ def test_report_restarts_on_next_model_after_daily_limit(tmp_path):
     assert state["model"] == "gemini:b" and state["restarts"] == 1
     # Cały raport, także analiza, pochodzi od drugiego modelu.
     assert state["analyses"] == {"techniczna": "Analiza B."}
-    assert body(state["report"]).startswith("Raport B 100,00 USD.")
+    assert body(state["report"]).startswith("Raport B, kurs 100,00 USD.")
     assert pool.available() == ["gemini:b"]
 
 
@@ -290,7 +290,7 @@ def test_missing_section_goes_back_to_editor_with_its_analysis():
         "## Podsumowanie\nKrótko.\n## Analiza techniczna\nTak." + f"\n{LAST_SECTION}\nKoniec."
     )
     state, llm = run(
-        ["Analiza A.", "Analiza A.", without_fundamentals, "Raport {{close}}." + END], data
+        ["Analiza A.", "Analiza A.", without_fundamentals, "Raport, kurs {{close}}." + END], data
     )
     assert state["verified"] and state["attempts"] == 2
     assert "brak sekcji „## Analiza fundamentalna”" in llm.prompts[-1]
@@ -306,8 +306,8 @@ def test_editor_review_finds_section_error_and_report_is_fixed_once():
     assert parse_review("- [Wiadomości] „Akcje nie rosną”: sprzeczne z kartą") == [
         "[Wiadomości] „Akcje nie rosną”: sprzeczne z kartą"
     ]
-    contradiction = "Raport {{close}}, akcje od miesięcy nie rosną." + END
-    fixed = "Raport {{close}}." + END
+    contradiction = "Raport, kurs {{close}}, akcje od miesięcy nie rosną." + END
+    fixed = "Raport, kurs {{close}}." + END
     llm = RecordingLLM(
         responses=[
             "Analiza.",
@@ -324,14 +324,18 @@ def test_editor_review_finds_section_error_and_report_is_fixed_once():
     assert state["review_issues"] == [
         "[Podsumowanie] „akcje od miesięcy nie rosną”: sprzeczne z kartą faktów"
     ]
-    assert body(state["report"]).startswith("Raport 100,00 USD.")
+    assert body(state["report"]).startswith("Raport, kurs 100,00 USD.")
     assert len(llm.prompts) == 4  # bez drugiego sprawdzenia przez redaktora
 
 
 def test_review_fix_does_not_use_verifier_fix_limit():
     wrong = "RSI wynosi 70,1." + END
     llm = RecordingLLM(
-        responses=["Analiza.", "Raport {{close}}." + END, "- [Podsumowanie] „Raport”: ogólnik"]
+        responses=[
+            "Analiza.",
+            "Raport, kurs {{close}}." + END,
+            "- [Podsumowanie] „Raport”: ogólnik",
+        ]
         + [wrong] * (MAX_FIXES + 1),
         prompts=[],
     )
@@ -352,6 +356,8 @@ def test_review_enabled_keeps_verifier_fix_limit():
 
 
 def test_editor_review_without_remarks_finishes():
-    llm = RecordingLLM(responses=["Analiza.", "Raport {{close}}." + END, "BRAK UWAG"], prompts=[])
+    llm = RecordingLLM(
+        responses=["Analiza.", "Raport, kurs {{close}}." + END, "BRAK UWAG"], prompts=[]
+    )
     state = build_graph(llm, lambda t: MarketData(facts=TECH)).invoke({"ticker": "T"})
     assert state["verified"] and state["review_issues"] == [] and len(llm.prompts) == 3

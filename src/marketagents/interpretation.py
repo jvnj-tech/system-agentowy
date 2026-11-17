@@ -588,6 +588,141 @@ def prompt_table(facts: FactSheet) -> str:
     return "\n".join(lines)
 
 
+# Słowa opisu faktu, które nie nazywają wielkości („zmiana kursu w ostatnim roku”).
+LABEL_STOPWORDS = {
+    "w",
+    "z",
+    "ze",
+    "na",
+    "od",
+    "do",
+    "i",
+    "o",
+    "a",
+    "oraz",
+    "dla",
+    "po",
+    "przed",
+    "przy",
+    "ostatnim",
+    "ostatnich",
+    "ostatniej",
+    "ostatni",
+    "ostatnie",
+    "poprzednim",
+    "roku",
+    "rok",
+    "lat",
+    "dni",
+    "sesji",
+    "usa",
+    "względem",
+    "ciągu",
+    "miesięcy",
+    "miesiącach",
+    "miesiącu",
+}
+# Opisy faktów, z których pochodzą nazwy wielkości (jak w karcie faktów); średnie kroczące
+# mają okna ustawiane przez użytkownika, dlatego są rozpoznawane po początku identyfikatora.
+CANONICAL_LABELS = {
+    "close": "kurs zamknięcia",
+    "high_52w": "najwyższy kurs zamknięcia z 52 tygodni",
+    "low_52w": "najniższy kurs zamknięcia z 52 tygodni",
+    "change_1m": "zmiana kursu w ostatnim miesiącu",
+    "change_3m": "zmiana kursu w ostatnich 3 miesiącach",
+    "change_1y": "zmiana kursu w ostatnim roku",
+    "rsi_14": "RSI(14)",
+    "macd": "linia MACD(12, 26)",
+    "macd_signal": "linia sygnału MACD(9)",
+    "macd_hist": "histogram MACD",
+    "bb_upper": "górna wstęga Bollingera(20, 2)",
+    "bb_lower": "dolna wstęga Bollingera(20, 2)",
+    "dist_sma_200": "odległość kursu od SMA(200)",
+    "bb_position": "położenie kursu między wstęgami Bollingera (0% = dolna, 100% = górna)",
+    "bb_width": "szerokość wstęg Bollingera względem SMA(20)",
+    "range_52w_position": "położenie kursu w zakresie z 52 tygodni (0% = minimum, 100% = maksimum)",
+    "fy_revenue": "przychody w ostatnim roku obrotowym",
+    "fy_net_income": "zysk netto w ostatnim roku obrotowym",
+    "fy_ocf": "przepływy operacyjne w ostatnim roku obrotowym",
+    "fy_revenue_growth": "zmiana przychodów rok do roku",
+    "fy_revenue_growth_prev": "zmiana przychodów rok do roku w poprzednim roku obrotowym",
+    "fy_net_income_growth": "zmiana zysku netto rok do roku",
+    "fy_net_margin": "marża netto",
+    "fy_operating_margin": "marża operacyjna",
+    "fy_gross_margin": "marża brutto",
+    "fy_liabilities_to_assets": "zobowiązania do aktywów",
+    "fy_roe": "rentowność kapitału własnego (ROE)",
+    "fy_eps": "rozwodniony zysk na akcję (EPS)",
+    "pe_ratio": "cena do zysku (C/Z) z ostatniego roku",
+    "macro_fed_rate": "stopa funduszy federalnych",
+    "macro_fed_rate_change_12m": "zmiana stopy funduszy federalnych w ciągu 12 miesięcy",
+    "macro_10y": "rentowność 10-letnich obligacji USA",
+    "macro_10y_change_12m": "zmiana rentowności 10-letnich obligacji USA w ciągu 12 miesięcy",
+    "macro_unemployment": "stopa bezrobocia w USA",
+    "macro_inflation": "inflacja CPI rok do roku",
+    "macro_inflation_change_12m": "zmiana inflacji CPI rok do roku w ciągu 12 miesięcy",
+}
+CANONICAL_PREFIXES = {"sma_": "średnia krocząca SMA", "ema_": "średnia wykładnicza EMA"}
+# Inne nazwy kursu akcji („notowania wzrosły o …”, „cena akcji spadła o …”).
+PRICE_SYNONYMS = {"noto", "akcj", "cena", "ceny", "cen"}
+# Fakty, których nazwa musi zawierać słowo główne opisu: „SMA(200) wynosi {{dist_sma_200}}”
+# podaje odległość od średniej jako jej wartość.
+HEAD_STEMS = {
+    "dist_": {"odle", "odda"},
+    "bb_width": {"szer", "wąsk"},
+    "macd_signal": {"sygn"},
+    "macd_hist": {"hist"},
+}
+CHANGE_VERBS = {"wzró", "wzro", "spad", "zmie", "zysk", "stra", "obni", "podn"}
+# Zdanie nawiązujące do poprzedniego („Wskaźnik ten wzrósł o …”, „jej zmiana wynosi …”).
+POINTER = re.compile(r"\b(?:ten|ta|tego|tej|jej|jego|ich|tych|tym)\b", re.IGNORECASE)
+NAME_WORD = re.compile(r"[^\W\d_][\w/]*", re.UNICODE)
+
+
+def _stems(text: str) -> set[str]:
+    words = (w.lower() for w in NAME_WORD.findall(text))
+    # Cztery pierwsze litery obejmują polskie odmiany („kurs”, „kursem”, „kursu”).
+    return {w[:4] for w in words if w not in LABEL_STOPWORDS and len(w) >= 2}
+
+
+def _check_unnamed_ref(
+    sentence: str, refs: list[str], facts: FactSheet
+) -> InterpretationIssue | None:
+    """Wartość liczbowa musi mieć w zdaniu nazwę wielkości, której dotyczy, np. „kurs jest
+    poniżej {{sma_20}}, {{sma_50}} i {{ema_20}}” nie mówi, czym są te trzy kwoty. Nazwą jest
+    dowolne słowo z opisu faktu („średnia”, „SMA”, „zysk”, „przychody”), więc wyliczenie
+    po jednej nazwie („SMA(20) wynosi {{sma_20}}, a SMA(50) {{sma_50}}”) jest poprawne."""
+    if POINTER.search(sentence):
+        return None
+    words = _stems(PLACEHOLDER.sub(" ", sentence))
+    for fact_id in dict.fromkeys(refs):
+        if fact_id not in facts or isinstance(facts[fact_id].value, str):
+            continue
+        name = CANONICAL_LABELS.get(fact_id) or next(
+            (v for k, v in CANONICAL_PREFIXES.items() if fact_id.startswith(k)), None
+        )
+        if name is None:
+            continue
+        stems = _stems(name)
+        if "kurs" in stems:
+            stems |= PRICE_SYNONYMS
+        if fact_id.startswith("change_"):
+            # Podmiot bywa pominięty: „Kurs spadł w miesiącu o …, a w ciągu roku wzrósł o …”.
+            stems |= CHANGE_VERBS
+        head = next((h for k, h in HEAD_STEMS.items() if fact_id.startswith(k)), None)
+        if head and re.search(rf"\bo\s+\{{\{{\s*{fact_id}\b", sentence):
+            head = None  # „kurs jest powyżej SMA(200) o {{dist_sma_200}}”
+        if not stems & words or (head and not head & words):
+            name = facts[fact_id].label
+            return InterpretationIssue(
+                sentence,
+                f"W zdaniu „{_short(sentence)}” wartość {{{{{fact_id}}}}} nie ma nazwy "
+                f"wielkości, której dotyczy ({name}); napisz, czego dotyczy wartość, "
+                f"np. „{name} wynosi {{{{{fact_id}}}}}”",
+            )
+    return None
+
+
 # Reguły dla zdań z odwołaniami oraz reguły, które sprawdzają opis także bez odwołania
 # (np. „kurs jest blisko dolnej wstęgi” bez podania wartości).
 CHECKS_WITH_REFS = (
@@ -600,6 +735,7 @@ CHECKS_WITH_REFS = (
     _check_change_claim,
     _check_persistence,
     _check_distance,
+    _check_unnamed_ref,
 )
 CHECKS_ANY = (_check_zones, _check_ma_order, _check_macd, _check_band_width)
 

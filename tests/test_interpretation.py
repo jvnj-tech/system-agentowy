@@ -343,3 +343,18 @@ def test_direction_is_checked_in_each_clause_with_several_changes():
         "Kurs w ostatnim roku wzrósł o {{change_1y}}, a w ostatnim miesiącu zmienił się o "
         "{{change_1m}}."
     )
+
+
+def test_value_without_quantity_name_is_reported():
+    # raport QCOM (pomiary 2554e0d): trzy kwoty bez nazw średnich
+    assert messages("Kurs jest poniżej {{sma_50}} oraz {{sma_200}}.")
+    # odległość od średniej podana jako jej wartość (raport TXN, a7fc756)
+    assert messages(
+        "Kurs jest powyżej SMA(50) wynoszącej {{sma_50}} i SMA(200) wynoszącej {{dist_sma_200}}."
+    )
+    assert not messages("Kurs jest poniżej SMA(200) o {{dist_sma_200}}.")
+    assert not messages("SMA(50) wynosi {{sma_50}}, a SMA(200) {{sma_200}}.")
+    assert not messages(
+        "Kurs spadł w miesiącu o {{change_1m}}, a w ciągu roku wzrósł o {{change_1y}}."
+    )
+    assert not messages("Odległość kursu od SMA(200) wynosi {{dist_sma_200}}.")

@@ -409,8 +409,12 @@ def same_word(name: str, word: str) -> bool:
 
 def source_words(text: str) -> set[str]:
     """Słowa źródła, także części nazw pisanych z łącznikiem („Coca-Cola”, „Nvidia-backed”)."""
-    words = set(re.findall(r"[\w&’'-]+", text.lower()))
-    return words | {part for w in words for part in re.split(r"[-’']", w) if part}
+    raw = re.findall(r"[\w&’'-]+", text)
+    words = {w.lower() for w in raw}
+    # Słowa sklejone w tekście wiadomości („TakeawaysGuardCap”): także końcówki od każdej
+    # wielkiej litery po małej („GuardCap”, „Cap”).
+    glued = {w[m.start() :].lower() for w in raw for m in re.finditer(r"(?<=[a-z])[A-Z]", w)}
+    return words | glued | {part for w in words for part in re.split(r"[-’']", w) if part}
 
 
 def known(name: str, words: set[str]) -> bool:
@@ -423,9 +427,40 @@ def known(name: str, words: set[str]) -> bool:
 # Zwykłe słowa angielskie pisane w nagłówkach wielką literą; bez tej listy np. „Now” z nagłówka
 # sprawia, że polskie „Nowy” na początku zdania jest uznawane za nazwę (raport ISRG, 16.11).
 HEADLINE_WORDS = {
-    "now", "new", "how", "why", "what", "when", "who", "this", "that", "the", "are", "was",
-    "will", "could", "should", "would", "after", "with", "for", "from", "its", "has", "have",
-    "can", "may", "into", "over", "more", "most", "just", "here", "top", "big", "best",
+    "now",
+    "new",
+    "how",
+    "why",
+    "what",
+    "when",
+    "who",
+    "this",
+    "that",
+    "the",
+    "are",
+    "was",
+    "will",
+    "could",
+    "should",
+    "would",
+    "after",
+    "with",
+    "for",
+    "from",
+    "its",
+    "has",
+    "have",
+    "can",
+    "may",
+    "into",
+    "over",
+    "more",
+    "most",
+    "just",
+    "here",
+    "top",
+    "big",
+    "best",
 }
 
 

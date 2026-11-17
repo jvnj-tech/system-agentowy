@@ -249,3 +249,14 @@ def test_number_from_other_article_gets_its_number():
     v = verify("Przychody wyniosły 8,89 mld USD [1].", FactSheet([]), news=news)
     assert v.news_hints == {"8,89": 2}
     assert "[2]" in v.issues()[0]
+
+
+def test_name_glued_to_previous_word_in_news_is_found():
+    # raport ISRG (pomiary 2554e0d): „Key TakeawaysGuardCap Asset Management…”
+    news = [
+        {
+            "headline": "Fund bets on ISRG",
+            "summary": "Key TakeawaysGuardCap Asset Management opened",
+        }
+    ]
+    assert not check_news_content("Fundusz GuardCap kupił akcje [1].", news, ["ISRG"])

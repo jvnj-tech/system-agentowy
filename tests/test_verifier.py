@@ -29,7 +29,6 @@ def test_unknown_placeholder_is_reported():
     assert "[brak danych: volume]" in result.rendered
 
 
-
 def test_malformed_placeholder_is_reported():
     # Odpowiedź asystenta MAR (pomiary a7fc756) przeszła weryfikację z takim odwołaniem.
     result = verify("Wzrost w ostatnim roku o {{change_4m - brak, więc pomijam}}.", FACTS)
@@ -41,6 +40,7 @@ def test_number_with_letter_suffix_is_not_split():
     # „3,44b” nie może dać liczby „3” (raport VRTX, pomiary bf6dce8); zapis sprawdza reguła formy
     result = verify("Przychody wyniosły 3,44b.", FACTS)
     assert not any("„3”" in m for m in result.issues())
+
 
 def test_invented_number_is_reported():
     result = verify("RSI wynosi 75,3, a kurs {{close}}.", FACTS)

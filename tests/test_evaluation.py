@@ -74,7 +74,7 @@ def test_usage_counter_counts_calls_and_tokens():
 
 
 def test_record_of_graph_run(tmp_path):
-    responses = ["Analiza.", "Analiza.", "Raport {{close}}, RSI 70,1." + END, DRAFT]
+    responses = ["Analiza.", "Analiza.", "Raport, kurs {{close}}, RSI 70,1." + END, DRAFT]
     llm = FakeListChatModel(responses=responses)
     data = MarketData(facts=list(FACTS))
     usage = UsageCounter()
