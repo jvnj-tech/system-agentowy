@@ -23,7 +23,7 @@ Projekt powstał w ramach pracy inżynierskiej na Politechnice Wrocławskiej.
   modelu po wyczerpaniu darmowego limitu i test kwalifikacyjny modeli.
 - **Ewaluacja:** wariant porównawczy bez karty faktów, wstrzykiwanie błędów i porównanie
   weryfikatora z modelem w roli sędziego.
-- **Jakość kodu:** 193 testy (pytest, działają bez klucza API), ruff, GitHub Actions.
+- **Jakość kodu:** 199 testów (pytest, działają bez klucza API), ruff, GitHub Actions.
 
 Technologie: Python 3.11, LangGraph, LangChain, pandas, Streamlit, Plotly, pytest, ruff, uv.
 
