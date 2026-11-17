@@ -150,8 +150,8 @@ def technical_facts(
         ("macd", "linia MACD(12, 26)", "", 2, "EMA(12) - EMA(26)"),
         ("macd_signal", "linia sygnału MACD(9)", "", 2, "EMA(9) linii MACD"),
         ("macd_hist", "histogram MACD", "", 2, "MACD - linia sygnału"),
-        ("bb_upper", "górna wstęga Bollingera(20, 2)", "USD", 2, "SMA(20) + 2 odchylenia"),
-        ("bb_lower", "dolna wstęga Bollingera(20, 2)", "USD", 2, "SMA(20) - 2 odchylenia"),
+        ("bb_upper", "górna wstęga Bollingera", "USD", 2, "SMA(20) + 2 odchylenia"),
+        ("bb_lower", "dolna wstęga Bollingera", "USD", 2, "SMA(20) - 2 odchylenia"),
     ]
     for fid, label, unit, decimals, method in indicator_facts:
         value = last.get(fid)
@@ -228,6 +228,14 @@ def zone(
     return f"powyżej {high}"
 
 
+# Znaczenie skali położenia kursu; trafia do źródła faktu (podpowiedź w aplikacji), a nie do
+# opisu, który model przepisywał w całości („położenie … (0% = dolna, 100% = górna) wynosi …”).
+SCALE = {
+    "bb_position": "0% = dolna wstęga, 100% = górna wstęga",
+    "range_52w_position": "0% = minimum, 100% = maksimum",
+}
+
+
 def ma_order(values: dict[int, float]) -> tuple[str, str]:
     """Układ średnich, np. („SMA(20) > SMA(50) > SMA(200)”, „układ wzrostowy”)."""
     windows = sorted(values)
@@ -256,12 +264,12 @@ def _position_facts(
         facts.append(
             Fact(
                 "bb_position",
-                "położenie kursu między wstęgami Bollingera (0% = dolna, 100% = górna)",
+                "położenie kursu między wstęgami Bollingera",
                 float(position),
                 "%",
                 0,
                 TECHNICAL,
-                f"{prices_src}; (kurs - dolna wstęga) / (górna - dolna)",
+                f"{prices_src}; (kurs - dolna wstęga) / (górna - dolna); {SCALE['bb_position']}",
                 zone(
                     position, "dolnej wstęgi", "górnej wstęgi", "dolnej wstędze", "górnej wstędze"
                 ),
@@ -295,12 +303,13 @@ def _position_facts(
         facts.append(
             Fact(
                 "range_52w_position",
-                "położenie kursu w zakresie z 52 tygodni (0% = minimum, 100% = maksimum)",
+                "położenie kursu w zakresie z 52 tygodni",
                 float(position),
                 "%",
                 0,
                 TECHNICAL,
-                f"{prices_src}; (kurs - minimum) / (maksimum - minimum) z 252 sesji",
+                f"{prices_src}; (kurs - minimum) / (maksimum - minimum) z 252 sesji; "
+                f"{SCALE['range_52w_position']}",
                 zone(position, "minimum z 52 tygodni", "maksimum z 52 tygodni"),
             )
         )
@@ -310,10 +319,10 @@ def _position_facts(
         facts.append(
             Fact(
                 "ma_order",
-                "układ średnich kroczących (od najwyższej)",
+                "układ średnich kroczących",
                 text,
                 group=TECHNICAL,
-                source=f"{prices_src}; porównanie wartości SMA",
+                source=f"{prices_src}; średnie uszeregowane od najwyższej",
                 assessment=assessment,
             )
         )

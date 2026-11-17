@@ -62,6 +62,24 @@ REPEATED_LABEL = re.compile(
     r"(?P<l>\b[^\W\d][\w() ]{10,60}?)\s+(?:wynosi|wyniosł\w*|wyniósł|osiągnęł\w*)\s+(?P=l)",
     re.IGNORECASE,
 )
+# Składnia zepsuta przez wstawienie opisu albo oceny z karty bez dopasowania do zdania:
+# „co odpowiada w strefie neutralnej”, „co stanowi typowa szerokość”, „przy najwyższy kurs”,
+# „na data ostatniej sesji”, ocena w nawiasie „wynosi 2,6% (wzrost)”.
+BROKEN_SYNTAX = re.compile(
+    r"\bco (?:odpowiada|oznacza|stanowi|wskazuje na|tworzy)\s+(?:w|we|przy|na|poniżej|powyżej)\s"
+    r"|\bco (?:odpowiada|oznacza|stanowi|wskazuje na|tworzy)\s+(?:typowa|mała|duża|wąska|szeroka)\b"
+    r"|\b(?:przy|na|od|do|z)\s+(?:najwyższy|najniższy|górna|dolna|data)\b"
+    r"|\((?:wzrost|spadek|bez zmian)\)",
+    re.IGNORECASE,
+)
+# Ten sam okres powtórzony w zdaniu po przepisaniu opisów kilku faktów.
+OPEN_GAP = 70
+PERIODS = (
+    "w ostatnim roku obrotowym",
+    "w poprzednim roku obrotowym",
+    "w ciągu 12 miesięcy",
+    "z 52 tygodni",
+)
 CITATIONS = re.compile(r"(?:\[\d{1,2}\])+")
 DECIMAL_POINT = re.compile(
     r"(?<![\w.])\d+\.\d+(?=\s*(?:%|USD|\$|mld|mln|bln|proc|punkt|p\.\s?p))", re.IGNORECASE
@@ -161,6 +179,22 @@ def _first_issue(sentence: str, facts: FactSheet) -> str | None:
             f"W zdaniu „<S>” nazwa lub ocena z karty stoi bez odmiany („{match.group(0)}”); "
             "przeredaguj zdanie, odmieniając ją zgodnie z resztą zdania"
         )
+    if (match := BROKEN_SYNTAX.search(sentence)) is not None:
+        return (
+            f"W zdaniu „<S>” opis albo ocena z karty nie pasuje do składni zdania "
+            f"(„{match.group(0).strip()}”); przeredaguj zdanie, odmieniając nazwę lub ocenę"
+        )
+    lower = sentence.lower()
+    for period in PERIODS:
+        first = lower.find(period)
+        second = lower.find(period, first + len(period)) if first >= 0 else -1
+        # Tylko powtórzenie tuż obok („w ciągu 12 miesięcy … zmiana … w ciągu 12 miesięcy”);
+        # ten sam okres przy dwóch odległych wielkościach w długim zdaniu jest poprawny.
+        if second >= 0 and second - first - len(period) <= OPEN_GAP:
+            return (
+                f"W zdaniu „<S>” okres „{period}” powtarza się; podaj go jeden raz, "
+                "a przy kolejnych wartościach samą nazwę wielkości"
+            )
     if (match := DECIMAL_POINT.search(sentence)) is not None:
         return (
             f"Liczba „{match.group(0)}” w zdaniu „<S>” ma kropkę dziesiętną; w polskim "

@@ -136,3 +136,23 @@ def test_empty_sentence_repeated_label_and_uninflected_after_verb():
         "na poziomie {{change_1y}}."
     )
     assert messages("Histogram wynosi {{change_1y}}, co oznacza linia MACD poniżej sygnału.")
+
+
+def test_broken_syntax_after_inserting_card_text():
+    # raporty ISRG i TXN (pomiary 67b2fe1)
+    assert messages("RSI(14) wynosi {{rsi_14}}, co odpowiada w strefie neutralnej.")
+    assert messages("Szerokość wstęg wynosi 6,9%, co stanowi typowa szerokość wstęg.")
+    assert messages("Kurs jest w środku przedziału przy najwyższy kurs zamknięcia {{high_52w}}.")
+    assert messages("Zmiana kursu w ostatnim miesiącu wynosi {{change_1m}} (wzrost).")
+    assert not messages("RSI(14) wynosi {{rsi_14}}, co oznacza strefę neutralną.")
+
+
+def test_period_repeated_next_to_itself():
+    assert messages(
+        "W ciągu 12 miesięcy odnotowano zmianę stopy funduszy w ciągu 12 miesięcy o {{x}}."
+    )
+    assert not messages(
+        "Stopa funduszy zmieniła się w ciągu 12 miesięcy o {{macro_fed_rate_change_12m}}, "
+        "a rentowność obligacji, która wynosi obecnie {{macro_10y}} na dzień {{macro_10y_date}}, "
+        "zmieniła się w ciągu 12 miesięcy o {{macro_10y_change_12m}}."
+    )

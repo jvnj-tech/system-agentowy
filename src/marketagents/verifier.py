@@ -25,7 +25,7 @@ import re
 from dataclasses import dataclass, field
 from html import escape
 
-from marketagents.facts import Fact, FactSheet
+from marketagents.facts import SCALE, Fact, FactSheet
 from marketagents.form import check_form
 from marketagents.grounding import (
     check_forecasts,
@@ -306,7 +306,9 @@ def described_numbers(facts: list[Fact]) -> frozenset[tuple[int, str]]:
     return frozenset(
         (int(m.group(1)), _unit_key(m.group(2)) if m.group(2) != "%" else "%")
         for fact in facts
-        for m in DESCRIBED_NUMBER.finditer(f"{fact.label} {fact.assessment or ''}")
+        for m in DESCRIBED_NUMBER.finditer(
+            f"{fact.label} {fact.assessment or ''} {SCALE.get(fact.id, '')}"
+        )
     )
 
 
