@@ -197,12 +197,12 @@ def distance_assessment(distance: float, percentile: float | None) -> str:
     if percentile is None:
         return side
     if percentile >= 90:
-        size = "odległość nietypowo duża na tle ostatnich 3 lat"
+        size = "w nietypowo dużej odległości na tle ostatnich 3 lat"
     elif percentile <= 25:
-        size = "odległość mała na tle ostatnich 3 lat"
+        size = "w małej odległości na tle ostatnich 3 lat"
     else:
-        size = "odległość typowa na tle ostatnich 3 lat"
-    return f"{side}, {size}"
+        size = "w typowej odległości na tle ostatnich 3 lat"
+    return f"{side} {size}"
 
 
 def zone(
@@ -229,15 +229,15 @@ def zone(
 
 
 def ma_order(values: dict[int, float]) -> tuple[str, str]:
-    """Układ średnich, np. („SMA(20) > SMA(50) > SMA(200)”, „krótsze średnie nad dłuższymi”)."""
+    """Układ średnich, np. („SMA(20) > SMA(50) > SMA(200)”, „układ wzrostowy”)."""
     windows = sorted(values)
     ordered = sorted(windows, key=lambda n: values[n], reverse=True)
     text = " > ".join(f"SMA({n})" for n in ordered)
     if ordered == windows:
-        return text, "krótsze średnie nad dłuższymi: przewaga wzrostów w krótkim terminie"
+        return text, "układ wzrostowy"
     if ordered == windows[::-1]:
-        return text, "krótsze średnie pod dłuższymi: przewaga spadków w krótkim terminie"
-    return text, "układ mieszany: średnie nie są uporządkowane według długości"
+        return text, "układ spadkowy"
+    return text, "układ mieszany"
 
 
 def _position_facts(

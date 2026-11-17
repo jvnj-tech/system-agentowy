@@ -291,7 +291,9 @@ def test_numbers_repeating_the_description_of_a_referenced_fact_are_allowed():
                 30.0,
                 "%",
                 1,
-                assessment=("odległość nietypowo duża na tle ostatnich 3 lat"),
+                assessment=(
+                    "kurs powyżej średniej w nietypowo dużej odległości na tle ostatnich 3 lat"
+                ),
             ),
             Fact("macd_hist", "histogram MACD", 0.4, "", 2),
         ]

@@ -50,7 +50,8 @@ Opisując trend:
 - oceń położenie kursu względem średnich SMA (krótkiej, średniej i długiej) oraz EMA;
   kurs powyżej najdłuższej średniej wskazuje na trend wzrostowy, poniżej na spadkowy,
 - wzajemny układ średnich opisz zgodnie z faktem o układzie średnich i jego oceną
-  (krótsze nad dłuższymi oznacza silniejszy trend krótkoterminowy); zbliżanie się
+  (układ wzrostowy, czyli średnie o krótszym oknie powyżej średnich o dłuższym oknie,
+  oznacza silniejszy trend krótkoterminowy); zbliżanie się
   lub przecięcie średnich opisz jako możliwy, a nie pewny sygnał zmiany trendu,
 - odległość kursu od najdłuższej średniej oceniaj tak, jak podaje kolumna „ocena”
   (na tle historii spółki), bez wniosków o dalszym kierunku,

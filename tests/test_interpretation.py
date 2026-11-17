@@ -117,7 +117,7 @@ POSITIONS = FactSheet(
             -6.0,
             "%",
             1,
-            assessment="kurs poniżej średniej, odległość typowa na tle ostatnich 3 lat",
+            assessment="kurs poniżej średniej w typowej odległości na tle ostatnich 3 lat",
         ),
         Fact("bb_width", "szerokość", 8.0, "%", 1, assessment="typowa szerokość wstęg"),
         Fact("macro_inflation", "inflacja", 3.7, "%", 1),

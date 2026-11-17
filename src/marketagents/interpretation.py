@@ -308,9 +308,9 @@ def _check_ma_order(sentence: str, refs: list[str], facts: FactSheet) -> Interpr
         if not (SHORTER.search(clause) and LONGER.search(clause)) or NEGATION.search(clause):
             continue
         above, below = bool(HIGHER.search(clause)), bool(LOWER.search(clause))
-        if above and not below and "nad dłuższymi" not in order:
+        if above and not below and "wzrostowy" not in order:
             return _issue(sentence, "ma_order", facts, f"układ średnich: {order}")
-        if below and not above and "pod dłuższymi" not in order:
+        if below and not above and "spadkowy" not in order:
             return _issue(sentence, "ma_order", facts, f"układ średnich: {order}")
     return None
 
@@ -349,8 +349,8 @@ def _check_distance(sentence: str, refs: list[str], facts: FactSheet) -> Interpr
     fact_id = distance[0]
     assessment = facts[fact_id].assessment
     match = LARGE.search(sentence)
-    sized = "odległość" in assessment
-    if match and sized and "nietypowo duża" not in assessment:
+    sized = "odległoś" in assessment
+    if match and sized and "nietypowo duż" not in assessment:
         why = f"„{match.group(0)}” sugeruje dużą odległość, a ocena to: {assessment}"
         return _issue(sentence, fact_id, facts, why)
     return None
