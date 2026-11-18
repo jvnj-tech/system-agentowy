@@ -13,7 +13,9 @@ SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
 ABBREVIATION = re.compile(
     r"(?<![\w.])(?:ok|np|m\.in|tj|tzn|tzw|wg|ang|por|zob|ca|mln|mld|tys|pkt|proc|r|ds|itd|itp"
     r"|nr|dot|godz|mies|tyg|prof|dr|mgr|inż|św|ul|wyd|red|zł"
-    r"|corp|inc|co|ltd|plc|jr|sr|st)\.$",
+    r"|corp|inc|co|ltd|plc|jr|sr|st|bros)\.$"
+    # Skrótowce z kropkami („U.S.”, „U.K.”) w nazwach firm i funduszy z wiadomości.
+    r"|(?<![\w.])(?:[A-Z]\.){2,}$",
     re.IGNORECASE,
 )
 # Inicjał imienia: pojedyncza wielka litera z kropką po słowie zaczynającym się wielką literą.

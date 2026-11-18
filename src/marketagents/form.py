@@ -78,7 +78,6 @@ PERIODS = (
     "w ostatnim roku obrotowym",
     "w poprzednim roku obrotowym",
     "w ciągu 12 miesięcy",
-    "z 52 tygodni",
 )
 CITATIONS = re.compile(r"(?:\[\d{1,2}\])+")
 DECIMAL_POINT = re.compile(

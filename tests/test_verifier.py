@@ -325,3 +325,13 @@ def test_news_sentence_with_card_reference_needs_no_citation():
         "Rynek jest niespokojny."
     )
     assert verify(report, facts, news_count=1).uncited == ["Rynek jest niespokojny."]
+
+
+def test_dotted_company_names_do_not_end_sentence():
+    # raporty NFLX i MSFT (próba 6a3b030): „Warner Bros. [1].” i „WisdomTree U.S. Dividend”
+    from marketagents.sentences import split
+
+    assert (
+        len(split("Zakłady na Warner Bros. [1]. Fundusz WisdomTree U.S. Dividend kupił akcje [2]."))
+        == 2
+    )
