@@ -148,8 +148,9 @@ def _first_issue(sentence: str, facts: FactSheet) -> str | None:
         if value is not None and value < 0:
             return (
                 f"W zdaniu „<S>” wartość {{{{{match.group(1)}}}}} ma znak minus, a zdanie "
-                "już mówi o spadku („spadek o -…”); napisz „zmiana o …” albo pomiń słowo "
-                "„spadek”"
+                "już mówi o spadku („spadek o -…”); napisz np. „zmieniła się o "
+                f"{{{{{match.group(1)}}}}}” albo „zmiana wyniosła {{{{{match.group(1)}}}}}”, "
+                "bez słowa „spadek” przed wartością"
             )
     if DISCREPANCY.search(sentence) and (PLACEHOLDER.search(sentence) or "kart" in sentence):
         return (
@@ -176,7 +177,8 @@ def _first_issue(sentence: str, facts: FactSheet) -> str | None:
     if (match := UNINFLECTED.search(sentence)) is not None:
         return (
             f"W zdaniu „<S>” nazwa lub ocena z karty stoi bez odmiany („{match.group(0)}”); "
-            "przeredaguj zdanie, odmieniając ją zgodnie z resztą zdania"
+            "przeredaguj zdanie, odmieniając ją zgodnie z resztą zdania, np. „odnotowano "
+            "zmianę o …”, „zmiana wyniosła …” albo „wskaźnik zmienił się o …”"
         )
     if (match := BROKEN_SYNTAX.search(sentence)) is not None:
         return (
