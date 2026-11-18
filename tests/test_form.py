@@ -156,3 +156,21 @@ def test_period_repeated_next_to_itself():
         "a rentowność obligacji, która wynosi obecnie {{macro_10y}} na dzień {{macro_10y_date}}, "
         "zmieniła się w ciągu 12 miesięcy o {{macro_10y_change_12m}}."
     )
+
+
+def test_period_repeated_for_price_changes_and_non_polish_letters():
+    # raporty AAPL z aplikacji (18.11.2026)
+    assert messages(
+        "W ostatnim miesiącu odnotowano zmianę kursu w ostatnim miesiącu o {{change_1m}}."
+    )
+    assert not messages(
+        "Zmiana kursu w ostatnim miesiącu wynosi {{change_1m}}, a zmiana kursu w ostatnim "
+        "roku wynosi {{change_1y}}."
+    )
+    assert not messages(
+        "W ostatnim roku kurs zmienił się o {{change_1y}}, a w ostatnim roku obrotowym "
+        "przychody wyniosły {{fy_revenue}}."
+    )
+    assert messages("Wycena rynková spółki wynosi {{pe_ratio}}.")
+    assert not messages("Spółka Nestlé ogłosiła wyniki [1].")
+    assert messages("Wartość pakietu osiągnęła wskazaną w raporcie kwotę [6].")

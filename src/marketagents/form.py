@@ -12,7 +12,9 @@ Każda reguła odpowiada rodzajowi błędu zaobserwowanemu w raportach zbioru pr
 - kropka dziesiętna zamiast przecinka („3.4%”),
 - ogólnik w miejscu liczby z wiadomości („płynność opisana w raporcie źródłowym”),
 - wiadomość zestawiona z kartą jako „rozbieżność”, choć dotyczy innego dnia lub okresu,
-- angielskie słowa i skróty („facility”, „6,12B USD”).
+- angielskie słowa i skróty („facility”, „6,12B USD”),
+- słowo z literą spoza polskiego alfabetu („rynková”),
+- ten sam okres powtórzony tuż obok („w ostatnim miesiącu … zmiana kursu w ostatnim miesiącu”).
 
 Treści zdania bez liczb (np. czy artykuł rzeczywiście to podaje) reguły nie oceniają.
 """
@@ -78,7 +80,13 @@ PERIODS = (
     "w ostatnim roku obrotowym",
     "w poprzednim roku obrotowym",
     "w ciągu 12 miesięcy",
+    "w ostatnim miesiącu",
+    "w ostatnich 3 miesiącach",
+    "w ostatnim roku",
 )
+# Litery polskiego alfabetu spoza ASCII; inna litera ze znakiem diakrytycznym w słowie
+# pisanym małą literą („rynková”) jest literówką, a nie nazwą własną („Nestlé”).
+POLISH_LETTERS = set("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ")
 CITATIONS = re.compile(r"(?:\[\d{1,2}\])+")
 DECIMAL_POINT = re.compile(
     r"(?<![\w.])\d+\.\d+(?=\s*(?:%|USD|\$|mld|mln|bln|proc|punkt|p\.\s?p))", re.IGNORECASE
@@ -88,7 +96,9 @@ VAGUE = re.compile(
     r"|\bopisan\w*\s+w\s+(?:raporcie|źródle|artykule)\s+źródłow\w*"
     r"|\bna\s+konkretny\s+dzień"
     r"|\bokreślon\w*\s+(?:poziom\w*|stop\w*|wartoś\w*|kwot\w*|cen\w*)"
-    r"|\bna\s+dany\s+rok",
+    r"|\bna\s+dany\s+rok"
+    r"|\bwskazan\w*\s+w\s+(?:źródle|artykule|raporcie|wiadomości)"
+    r"|\bwskazan\w*\s+(?:kwot\w*|wartoś\w*|poziom\w*)",
     re.IGNORECASE,
 )
 DISCREPANCY = re.compile(
@@ -185,10 +195,17 @@ def _first_issue(sentence: str, facts: FactSheet) -> str | None:
             f"W zdaniu „<S>” opis albo ocena z karty nie pasuje do składni zdania "
             f"(„{match.group(0).strip()}”); przeredaguj zdanie, odmieniając nazwę lub ocenę"
         )
+    for word in re.findall(r"[^\W\d_]+", sentence):
+        if word[0].islower() and any(not ch.isascii() and ch not in POLISH_LETTERS for ch in word):
+            return (
+                f"Zdanie „<S>” zawiera słowo, którego nie ma w języku polskim („{word}”); "
+                "popraw pisownię"
+            )
     lower = sentence.lower()
     for period in PERIODS:
-        first = lower.find(period)
-        second = lower.find(period, first + len(period)) if first >= 0 else -1
+        # „w ostatnim roku” nie obejmuje „w ostatnim roku obrotowym” (osobny okres).
+        found = [m.start() for m in re.finditer(re.escape(period) + r"(?! obrotow)", lower)]
+        first, second = (found[0], found[1]) if len(found) > 1 else (-1, -1)
         # Tylko powtórzenie tuż obok („w ciągu 12 miesięcy … zmiana … w ciągu 12 miesięcy”);
         # ten sam okres przy dwóch odległych wielkościach w długim zdaniu jest poprawny.
         if second >= 0 and second - first - len(period) <= OPEN_GAP:
